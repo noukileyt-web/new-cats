@@ -143,7 +143,8 @@
         body.is-dark .nav-btn { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); color: #ccc; }
         .nav-btn:active { transform: scale(0.9); }
 
-        #terminalTrigger { display: block; position: absolute; bottom: 30px; right: 20px; z-index: 1000; background: rgba(10,20,10,0.9); padding: 12px; border-radius: 50%; color: #5f5; border: 1px solid #3c3; font-size: 20px; transition: 0.3s var(--spring); transform: translateZ(30px); pointer-events: auto !important; cursor: pointer; box-shadow: 0 0 20px rgba(0,255,0,0.2);}
+        /* КНОПКА ТЕРМИНАЛА ВНЕ ПРЕДЕЛОВ ПАРАЛЛАКСА */
+        #terminalTrigger { display: block; position: fixed; bottom: 30px; right: 20px; z-index: 8600; background: rgba(10,20,10,0.9); padding: 12px; border-radius: 50%; color: #5f5; border: 1px solid #3c3; font-size: 20px; transition: 0.3s var(--spring); pointer-events: auto !important; cursor: pointer; box-shadow: 0 0 20px rgba(0,255,0,0.2);}
         .tab-content { display: none; flex: 1; padding: 15px; overflow-y: auto; z-index: 150; margin: 0 15px; transform-style: preserve-3d; }
         .tab-content.active { display: flex; flex-direction: column; align-items: center; animation: fadeUp 0.5s var(--spring); position: relative; }
 
@@ -218,7 +219,13 @@
         .trans-sub { color: #fff; font-size: 16px; letter-spacing: 2px; margin-bottom: 10px; opacity: 0.8;}
         .trans-title { color: #d32f2f; font-size: 38px; font-weight: bold; letter-spacing: 6px; text-transform: uppercase; text-shadow: 0 0 20px rgba(211,47,47,0.5); text-align: center;}
         
-        #terminalScreen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #010a01; color: #3f3; z-index: 9000; display: none; flex-direction: column; padding: 20px; font-family: monospace; border-radius: 10px; overflow: hidden; box-shadow: inset 0 0 100px rgba(0,0,0,0.9), inset 0 0 30px rgba(0,255,0,0.1); }
+        /* ПРИПОДНЯТЫЙ И СДВИГНУТЫЙ ТЕРМИНАЛ НА МОБИЛКАХ */
+        #terminalScreen { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #010a01; 
+            color: #3f3; z-index: 9000; display: none; flex-direction: column; 
+            padding: 20px 20px 80px 20px; font-family: monospace; border-radius: 10px; 
+            overflow: hidden; box-shadow: inset 0 0 100px rgba(0,0,0,0.9), inset 0 0 30px rgba(0,255,0,0.1); 
+        }
         #terminalScreen::before { content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06)); z-index: 2; background-size: 100% 3px, 3px 100%; pointer-events: none; opacity: 0.5; }
         .term-inner { transform: perspective(800px) rotateX(2deg) scale(0.98); flex: 1; display: flex; flex-direction: column; z-index: 5;}
         .term-input { background: transparent; border: none; outline: none; color: #3f3; font-family: inherit; font-size: 16px; width: 90%; text-shadow: 0 0 5px #3f3; }
@@ -230,9 +237,9 @@
         @keyframes vhs-tear { 0% { opacity: 0; filter: invert(0) blur(0px); transform: skewX(0deg); } 20% { opacity: 1; filter: invert(1) blur(5px); transform: skewX(50deg); background: red; } 40% { opacity: 0.8; filter: invert(1); transform: skewX(-50deg); background: blue; } 60% { opacity: 1; filter: invert(0) blur(10px); transform: skewX(20deg); background: repeating-linear-gradient(90deg, #fff, #000 10px); } 100% { opacity: 0; filter: invert(0) blur(0px); transform: skewX(0deg); } }
         @keyframes text-glitch { 0% { transform: translate(0); } 25% { transform: translate(-3px, 2px); } 50% { transform: translate(3px, -2px); } 75% { transform: translate(-3px, -2px); } }
 
-        /* АНИМАЦИЯ SIRI (ХОРРОР) */
+        /* ПРИПОДНЯТАЯ АНИМАЦИЯ ГОЛОСОВОГО АССИСТЕНТА */
         #storyEventOverlay {
-            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 400px;
+            position: fixed; bottom: 85px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 400px;
             display: none; flex-direction: column; align-items: center; z-index: 8000; pointer-events: none;
             opacity: 0; transition: opacity 1s ease;
         }
@@ -268,7 +275,7 @@
             <div class="tut-decline" onclick="declineInvite()">Я не хочу участвовать (Выход)</div>
         </div>
 
-        <!-- Шаг 2: Радио -->
+        <!-- Шаг 2: Radio -->
         <div class="tut-stage" id="tutStage1">
             <h2 class="tut-title">Взлом Эфира</h2>
             <p class="tut-desc" id="tutRadioText">Двигайте ползунок так, чтобы зеленая волна совпала с красной.</p>
@@ -322,7 +329,8 @@
                 <span style="margin-right:10px;">C:\></span>
                 <input type="text" class="term-input" id="termInput" autofocus onkeydown="handleTerminalCommand(event)">
             </div>
-            <button class="btn-premium" style="margin-top:auto; align-self: center; background:transparent; border: 1px solid #3f3; padding: 10px 20px; font-family:monospace; color: #3f3; z-index: 10;" onclick="closeTerminal()">[ ЗАКРЫТЬ ТЕРМИНАЛ ]</button>
+            <!-- СДВИГ КНОПКИ ЗАКРЫТИЯ ВЫШЕ -->
+            <button class="btn-premium" style="margin-top:auto; margin-bottom: 30px; align-self: center; background:transparent; border: 1px solid #3f3; padding: 12px 24px; font-family:monospace; color: #3f3; z-index: 10; cursor: pointer;" onclick="closeTerminal()">[ ЗАКРЫТЬ ТЕРМИНАЛ ]</button>
         </div>
     </div>
 
@@ -379,7 +387,7 @@
             <p id="cooldownLabel" style="font-size: 12px; margin-top: 15px; font-weight: bold; color: #ff3333; display: none; text-shadow: 0 2px 4px rgba(0,0,0,0.5);"></p>
 
             <div class="paper-notification" id="paperNotification" onclick="playPaperWhisper()">
-                <div class="paper-timer" id="paperTimerText">До конца праздника: ?</div>
+                <div class="paper-timer" id="paperTimerText">До конца корпоратива: ?</div>
                 <div id="paperStatusText">В этой комнате никого нет. Пока нет.</div>
                 <span id="devBypassBtn" onclick="resetTestCD(); event.stopPropagation();" style="display:none; font-size:10px; font-weight:bold; color: #888; text-decoration: underline; cursor: pointer; margin-top: 15px;">[Сброс КД (Dev)]</span>
             </div>
@@ -448,11 +456,11 @@
                     🏪 ЛАВКА (🎟️ <span id="ticketCountLabel">0</span> | 🪙 <span id="coinCountLabel">0</span>)
                 </div>
                 <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 10px;">
-                    <span style="font-size:12px;">Обменять 5 🎟️ на 2,000 🪙:</span>
+                    <span style="font-size:12px;">Обменять 5 🎟️ на 500 🪙:</span>
                     <button class="nav-btn" style="padding: 6px 12px; font-size:11px;" onclick="buyCoins()">Обменять</button>
                 </div>
                 <div style="display:flex; justify-content: space-between; align-items:center;">
-                    <span style="font-size:12px;">Сбросить КД коробки за 15 🎟️:</span>
+                    <span style="font-size:12px;">Сбросить КД коробки за 20 🎟️:</span>
                     <button class="nav-btn" style="padding: 6px 12px; font-size:11px;" onclick="buyCdReset()">Сбросить</button>
                 </div>
             </div>
@@ -461,8 +469,10 @@
         </div>
         
         <div id="lore" class="tab-content"><div id="loreGrid"></div></div>
-        <div id="terminalTrigger" onclick="openTerminal()">💻</div>
     </div>
+
+    <!-- ВЫНЕСЕННАЯ КНОПКА КЛИЕНТА ТЕРМИНАЛА ВНЕ ПРЕДЕЛОВ 3D -->
+    <div id="terminalTrigger" onclick="openTerminal()">💻</div>
 
     <div class="modal" id="dropModal">
         <div class="modal-content">
@@ -473,7 +483,7 @@
     </div>
 
     <script>
-        const DAYS_REMAINING = "4 дня"; 
+        const DAYS_REMAINING = "10 дней"; 
         const tg = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.expand) ? window.Telegram.WebApp : { expand: () => {}, sendData: null, showAlert: alert, HapticFeedback: null };
         tg.expand();
 
@@ -594,7 +604,7 @@
 
         function calculateGuestCount() { return inventoryData.filter(p => p && p.id && p.id !== "sharp_r9" && p.id !== "res_coins" && p.id !== "res_tickets").reduce((acc, current) => { if(!acc.some(item => item.id === current.id)) acc.push(current); return acc; }, []).length; }
         let guestCount = calculateGuestCount(); let coinsCount = parseInt(safeStorage.getItem('party_coins'), 10) || 0; let lastOpenTime = parseInt(safeStorage.getItem('party_last_open'), 10) || 0; let casesOpened = parseInt(safeStorage.getItem('party_cases_opened'), 10) || 0; let roomOpenedCount = parseInt(safeStorage.getItem('party_room_opened_count'), 10) || 0; let currentStage = parseInt(safeStorage.getItem('party_stage'), 10) || 0; let isIznankaCompleted = safeStorage.getItem('party_iznanka_completed') === 'true';
-        const COOLDOWN_TIME = 4 * 60 * 60 * 1000; let ticketCount = parseInt(safeStorage.getItem('party_ticket_count'), 10) || 0; let lastMinigameTime = parseInt(safeStorage.getItem('party_last_minigame'), 10) || 0; const MINIGAME_COOLDOWN = 3 * 60 * 1000;
+        const COOLDOWN_TIME = 4 * 60 * 60 * 1000; let ticketCount = parseInt(safeStorage.getItem('party_ticket_count'), 10) || 0; let lastMinigameTime = parseInt(safeStorage.getItem('party_last_minigame'), 10) || 0; const MINIGAME_COOLDOWN = 10 * 60 * 1000;
         let gameActive = (Date.now() - lastMinigameTime >= MINIGAME_COOLDOWN); let confirmAction = null; let pendingStoryDrop = null; let transitionTarget = null;
 
         const phonesLight = [{ id: "l0", name: "Smartisan Nut Pro 3", img: "assets/phones/l_smartisan.png", emoji: "📱" }, { id: "l1", name: "YotaPhone 2", img: "assets/phones/l_yota.png", emoji: "📟" }, { id: "l2", name: "HTC One M8", img: "assets/phones/l_htc.png", emoji: "📳" }, { id: "l3", name: "LG G4 (Кожа)", img: "assets/phones/l_lg.png", emoji: "🧳" }, { id: "l4", name: "Nokia Lumia 1020", img: "assets/phones/l_lumia.png", emoji: "📵" }, { id: "l5", name: "Siemens SX1", img: "assets/phones/l_sx1.png", emoji: "🎮" }, { id: "l6", name: "Motorola E398", img: "assets/phones/l_e398.png", emoji: "📻" }];
@@ -617,8 +627,19 @@
 
         const app = document.getElementById('appScreen'); const box = document.getElementById('giftBox'); const boxWrapper = document.getElementById('giftParallaxWrapper'); 
         function update3D() { if (!app || !box || !boxWrapper) return; app.style.transform = `rotateY(${(mX - 0.5) * 15}deg) rotateX(${-(mY - 0.5) * 15}deg) scale(1.05)`; app.style.webkitTransform = `rotateY(${(mX - 0.5) * 15}deg) rotateX(${-(mY - 0.5) * 15}deg) scale(1.05)`; boxWrapper.style.transform = `translateY(${-(mY - 0.5) * 30}px) translateX(${(mX - 0.5) * 30}px) translateZ(80px)`; boxWrapper.style.webkitTransform = `translateY(${-(mY - 0.5) * 30}px) translateX(${(mX - 0.5) * 30}px) translateZ(80px)`; if (isDarkSide) { app.style.setProperty('--light-x', `${mX * 100}%`); app.style.setProperty('--light-y', `${mY * 100}%`); } }
+        
         window.addEventListener('mousemove', (e) => { mX = e.clientX/window.innerWidth; mY = e.clientY/window.innerHeight; update3D(); });
-        window.addEventListener('touchmove', (e) => { if(e.touches.length > 0) { mX = e.touches[0].clientX/window.innerWidth; mY = e.touches[0].clientY/window.innerHeight; update3D(); }});
+        
+        // ПОЛНОЦЕННОЕ ВЕДЕНИЕ ПАЛЬЦЕМ (TOUCHMOVE И TOUCHSTART) ДЛЯ МОБИЛОК
+        const handleTouch = (e) => {
+            if(e.touches && e.touches.length > 0) {
+                mX = e.touches[0].clientX / window.innerWidth;
+                mY = e.touches[0].clientY / window.innerHeight;
+                update3D();
+            }
+        };
+        window.addEventListener('touchstart', handleTouch, { passive: true });
+        window.addEventListener('touchmove', handleTouch, { passive: true });
 
         function applyStage() { if (currentStage === 1) setDarkSide('room', false); else if (currentStage === 2) setDarkSide('kitchen', false); else if (currentStage === 3) setDarkSide('mall', false); else { setLightSide(); } }
 
@@ -658,11 +679,11 @@
 
         function openTab(id) { 
             haptic('tick'); document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active')); document.getElementById(id).classList.add('active'); 
-            if(id === 'inventory') renderInv(); if(id === 'lore') renderLore(); if(id === 'minigameContainer') resizeCanvases(); 
+            if(id === 'inventory') renderInv(); if(id === 'lore') renderLore(); if(id === 'minigameContainer') { setTimeout(resizeCanvases, 50); } 
         }
 
         document.getElementById('confirmYesBtn').addEventListener('click', () => {
-            if (confirmAction === 'cdBypass') { ticketCount -= 15; safeStorage.setItem('party_ticket_count', ticketCount); lastOpenTime = 0; safeStorage.setItem('party_last_open', 0); closeConfirmModal(); updateUIState(); haptic('success'); executeGiftAnimation(); } 
+            if (confirmAction === 'cdBypass') { ticketCount -= 20; safeStorage.setItem('party_ticket_count', ticketCount); lastOpenTime = 0; safeStorage.setItem('party_last_open', 0); closeConfirmModal(); updateUIState(); haptic('success'); executeGiftAnimation(); } 
             else if (confirmAction === 'transition' && transitionTarget) { const target = transitionTarget; document.getElementById('customConfirm').style.display = 'none'; muffleAudio(false); confirmAction = null; transitionTarget = null;
                 if (target.locKey === 'light_side_final') { currentStage = 4; isIznankaCompleted = true; safeStorage.setItem('party_iznanka_completed', 'true'); safeStorage.setItem('party_stage', 4); playLevelUpTransition(() => { setLightSide(); updateUIState(); }, 'СВЕТЛАЯ СТОРОНА'); } 
                 else { currentStage = target.stageNum; safeStorage.setItem('party_stage', currentStage); playLevelUpTransition(() => { setDarkSide(target.locKey); }, target.locName); } } 
@@ -671,11 +692,11 @@
 
         function openGift() {
             if (isOpening || isTransitioning) return;
-            if (Date.now() - lastOpenTime < COOLDOWN_TIME) { haptic('error'); if (ticketCount >= 15) { showCdBypassConfirm(); } else { showSafeAlert(`Коробка еще остывает!\n\nТребуется: 15 Билетов 🎟️ (у вас: ${ticketCount} 🎟️).`); } return; }
+            if (Date.now() - lastOpenTime < COOLDOWN_TIME) { haptic('error'); if (ticketCount >= 20) { showCdBypassConfirm(); } else { showSafeAlert(`Коробка еще остывает!\n\nТребуется: 20 Билетов 🎟️ (у вас: ${ticketCount} 🎟️).`); } return; }
             executeGiftAnimation();
         }
 
-        function showCdBypassConfirm() { muffleAudio(true); const conf = document.getElementById('customConfirm'); document.getElementById('confirmText').innerText = `Коробка еще остывает. Сбросить таймер мгновенно за 15 Билетов Эфира 🎟️?`; conf.style.display = 'flex'; confirmAction = 'cdBypass'; }
+        function showCdBypassConfirm() { muffleAudio(true); const conf = document.getElementById('customConfirm'); document.getElementById('confirmText').innerText = `Коробка еще остывает. Сбросить таймер мгновенно за 20 Билетов Эфира 🎟️?`; conf.style.display = 'flex'; confirmAction = 'cdBypass'; }
         function showConfirmTransition(locKey, locName, stageNum) { muffleAudio(true); const conf = document.getElementById('customConfirm'); const msg = locKey === 'light_side_final' ? "Вы хотите выйти из изнанки? Сюда больше нельзя будет вернуться." : `Вы собрали все устройства в этой зоне. Перейти в [${locName}]?`; document.getElementById('confirmText').innerText = msg; conf.style.display = 'flex'; confirmAction = 'transition'; transitionTarget = { locKey, locName, stageNum }; }
         function closeConfirmModal() { haptic('tick'); document.getElementById('customConfirm').style.display = 'none'; muffleAudio(false); if (confirmAction === 'transition' && pendingStoryDrop) { showStoryDropModal(pendingStoryDrop); pendingStoryDrop = null; } confirmAction = null; transitionTarget = null; }
 
@@ -710,8 +731,8 @@
                 const isAllPhonesCollected = phonesLight.every(p => inventoryData.some(inv => inv.id === p.id)) && phonesRoom.every(p => inventoryData.some(inv => inv.id === p.id)) && phonesKitchen.every(p => inventoryData.some(inv => inv.id === p.id)) && phonesMall.every(p => inventoryData.some(inv => inv.id === p.id));
                 if (isAllPhonesCollected && !inventoryData.some(p => p.id === "sharp_r9")) { drop = goldPhoneReward; } 
                 else if (rng < 0.3) { let pool = phonesLight; if (isDarkSide) { pool = currentLoc === 'room' ? phonesRoom : (currentLoc === 'kitchen' ? phonesKitchen : phonesMall); } let available = pool.filter(p => !inventoryData.some(inv => inv.id === p.id)); if (available.length === 0) available = pool; drop = available[Math.floor(Math.random() * available.length)]; } 
-                else if (rng < 0.7) { let coinsReward = Math.floor(500 + Math.random() * 2000); drop = { id: "res_coins", name: `${coinsReward} Монет 🪙`, emoji: "🪙", desc: "coins", amount: coinsReward }; } 
-                else { let ticketsReward = Math.floor(5 + Math.random() * 10); drop = { id: "res_tickets", name: `${ticketsReward} Билетов 🎟️`, emoji: "🎟️", desc: "tickets", amount: ticketsReward }; }
+                else if (rng < 0.7) { let coinsReward = Math.floor(150 + Math.random() * 350); drop = { id: "res_coins", name: `${coinsReward} Монет 🪙`, emoji: "🪙", desc: "coins", amount: coinsReward }; } 
+                else { let ticketsReward = Math.floor(2 + Math.random() * 4); drop = { id: "res_tickets", name: `${ticketsReward} Билетов 🎟️`, emoji: "🎟️", desc: "tickets", amount: ticketsReward }; }
             }
 
             let isNewPhone = false;
@@ -829,10 +850,10 @@
             resizeCanvases(); resetMinigames();
         }
 
-        function handleMinigameWin(taskName) {
+        function handleMinigameWin() {
             if (!gameActive) return;
             gameActive = false; lastMinigameTime = Date.now(); safeStorage.setItem('party_last_minigame', lastMinigameTime);
-            let reward = Math.floor(3 + Math.random() * 6); if (tg && tg.sendData) { try { tg.sendData(JSON.stringify({ action: "event_resource", coins: 0, tickets: reward })); } catch(e){} } ticketCount += reward; safeStorage.setItem('party_ticket_count', ticketCount);
+            let reward = Math.floor(1 + Math.random() * 2); if (tg && tg.sendData) { try { tg.sendData(JSON.stringify({ action: "event_resource", coins: 0, tickets: reward })); } catch(e){} } ticketCount += reward; safeStorage.setItem('party_ticket_count', ticketCount);
             haptic('success'); playSynth('success'); 
             document.getElementById('minigameResult').innerHTML = `✅ ЗАДАЧА УСПЕШНА!<br>Награда: +${reward} Билетов 🎟️`; 
             showSafeAlert(`✅ Успех!\nВы выполнили задачу.\nНаграда: +${reward} Билетов 🎟️!`); updateUIState();
@@ -856,6 +877,8 @@
             requestAnimationFrame(drawWave);
             if (!document.getElementById('mg-radio').classList.contains('active') || !document.getElementById('minigameContainer').classList.contains('active')) return; 
             try {
+                // АВТОМАТИЧЕСКАЯ РЕГУЛИРОВКА ЕСЛИ ШИРИНА 0
+                if (waveCanvas.width === 0 || waveCanvas.height === 0) { resizeCanvases(); }
                 const w = waveCanvas.width; const h = waveCanvas.height; if (w === 0 || h === 0) return; timeAcc += 0.05;
                 wctx.fillStyle = 'rgba(2, 10, 2, 0.4)'; wctx.fillRect(0, 0, w, h);
                 wctx.strokeStyle = 'rgba(0, 255, 0, 0.15)'; wctx.lineWidth = 1; wctx.beginPath(); for(let x=0; x<w; x+=25) { wctx.moveTo(x, 0); wctx.lineTo(x, h); } for(let y=0; y<h; y+=25) { wctx.moveTo(0, y); wctx.lineTo(w, y); } wctx.stroke();
@@ -887,7 +910,6 @@
         setInterval(() => {
             if(!gameActive || !document.getElementById('mg-decrypt').classList.contains('active')) return;
             currentDec = Math.floor(1000 + Math.random() * 8999);
-            // Даем шанс 5% что выпадет нужное число, чтобы было реально поймать
             if (Math.random() > 0.95) currentDec = targetDec;
             document.getElementById('currentDecCode').innerText = currentDec;
         }, 100);
@@ -906,6 +928,8 @@
             requestAnimationFrame(drawRadar);
             if (!document.getElementById('mg-radar').classList.contains('active') || !document.getElementById('minigameContainer').classList.contains('active')) return;
             try {
+                // АВТОМАТИЧЕСКАЯ РЕГУЛИРОВКА ЕСЛИ ШИРИНА 0
+                if (radarCanvas.width === 0 || radarCanvas.height === 0) { resizeCanvases(); }
                 const w = radarCanvas.width; const h = radarCanvas.height; if (w === 0) return;
                 rctx.clearRect(0,0,w,h); const cx = w/2; const cy = h/2; const r = Math.min(cx, cy) - 5;
                 
@@ -919,13 +943,11 @@
 
                 radarAngle += 0.05; if (radarAngle > Math.PI*2) radarAngle -= Math.PI*2;
                 
-                // Sweep
                 rctx.beginPath(); rctx.moveTo(cx, cy); rctx.arc(cx, cy, r, radarAngle - 0.5, radarAngle); rctx.lineTo(cx, cy);
                 let grad = rctx.createRadialGradient(cx, cy, 0, cx, cy, r); grad.addColorStop(0, 'rgba(0,255,0,0.5)'); grad.addColorStop(1, 'rgba(0,255,0,0)');
                 rctx.fillStyle = grad; rctx.fill();
                 rctx.strokeStyle = '#0f0'; rctx.lineWidth = 2; rctx.beginPath(); rctx.moveTo(cx, cy); rctx.lineTo(cx + Math.cos(radarAngle)*r, cy + Math.sin(radarAngle)*r); rctx.stroke();
 
-                // Target Blip
                 let diff = Math.abs(radarAngle - targetRadarAngle); if (diff > Math.PI) diff = Math.PI*2 - diff;
                 if (diff < 0.2) { radarBlipAlpha = 1; if(Date.now()-lastWhisperTime > 300) { playSynth('beep'); lastWhisperTime=Date.now(); } }
                 else { radarBlipAlpha = Math.max(0, radarBlipAlpha - 0.02); }
@@ -967,8 +989,8 @@
             if (reactorWinTime >= 4.0) { isReactorPressing = false; handleMinigameWin(); }
         }, 50);
 
-        function buyCoins() { if (ticketCount < 5) return showSafeAlert("Не хватает Билетов Эфира 🎟️ (нужно минимум 5)"); ticketCount -= 5; coinsCount += 2000; safeStorage.setItem('party_ticket_count', ticketCount); safeStorage.setItem('party_coins', coinsCount); updateUIState(); haptic('success'); showSafeAlert("🎟️ Билеты списаны!\n2,000 Монет 🪙 добавлены в инвентарь."); if (tg && tg.sendData) { try { tg.sendData(JSON.stringify({ action: "event_resource", coins: 2000, tickets: -5 })); } catch(e) {} } }
-        function buyCdReset() { if (ticketCount < 15) return showSafeAlert("Не хватает Билетов Эфира 🎟️ (нужно минимум 15)"); ticketCount -= 15; safeStorage.setItem('party_ticket_count', ticketCount); lastOpenTime = 0; safeStorage.setItem('party_last_open', 0); updateUIState(); haptic('success'); showSafeAlert("Коробка снова доступна для открытия!"); if (tg && tg.sendData) { try { tg.sendData(JSON.stringify({ action: "event_resource", coins: 0, tickets: -15 })); } catch(e) {} } }
+        function buyCoins() { if (ticketCount < 5) return showSafeAlert("Не хватает Билетов Эфира 🎟️ (нужно минимум 5)"); ticketCount -= 5; coinsCount += 500; safeStorage.setItem('party_ticket_count', ticketCount); safeStorage.setItem('party_coins', coinsCount); updateUIState(); haptic('success'); showSafeAlert("🎟️ Билеты списаны!\n500 Монет 🪙 добавлены в инвентарь."); if (tg && tg.sendData) { try { tg.sendData(JSON.stringify({ action: "event_resource", coins: 500, tickets: -5 })); } catch(e) {} } }
+        function buyCdReset() { if (ticketCount < 20) return showSafeAlert("Не хватает Билетов Эфира 🎟️ (нужно минимум 20)"); ticketCount -= 20; safeStorage.setItem('party_ticket_count', ticketCount); lastOpenTime = 0; safeStorage.setItem('party_last_open', 0); updateUIState(); haptic('success'); showSafeAlert("Коробка снова доступна для открытия!"); if (tg && tg.sendData) { try { tg.sendData(JSON.stringify({ action: "event_resource", coins: 0, tickets: -20 })); } catch(e) {} } }
 
         // SIRI JUMPSCARE СЮЖЕТНЫЕ СОБЫТИЯ
         const storyEvents = [
@@ -1008,7 +1030,6 @@
             }, 100);
         }
         
-        // Первый скример через 2 минуты, дальше каждые 5 минут
         setTimeout(triggerStoryEvent, 120000); 
         setInterval(triggerStoryEvent, 300000);
 
