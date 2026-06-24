@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
+    <!-- Автоматическое преломление путей под ваш репозиторий GitHub Pages -->
+    <base href="/new-cats/">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
     <title>Ивент: esPhones</title>
@@ -143,7 +145,22 @@
         body.is-dark .nav-btn { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); color: #ccc; }
         .nav-btn:active { transform: scale(0.9); }
 
-        /* КНОПКА ТЕРМИНАЛА ВНЕ ПРЕДЕЛОВ ПАРАЛЛАКСА */
+        /* Зеленая неоновая кнопка сохранения */
+        .btn-sync {
+            background: linear-gradient(45deg, #2ecc71, #27ae60) !important;
+            color: #fff !important;
+            border: none !important;
+            box-shadow: 0 0 15px rgba(46, 204, 113, 0.4) !important;
+            font-weight: bold !important;
+            font-size: 14px !important;
+            margin-bottom: 15px;
+            width: 100%;
+            padding: 15px !important;
+            border-radius: 14px !important;
+        }
+        .btn-sync:active { transform: scale(0.97); }
+
+        /* КНОПКА ТЕРМИНАЛА */
         #terminalTrigger { display: block; position: fixed; bottom: 30px; right: 20px; z-index: 8600; background: rgba(10,20,10,0.9); padding: 12px; border-radius: 50%; color: #5f5; border: 1px solid #3c3; font-size: 20px; transition: 0.3s var(--spring); pointer-events: auto !important; cursor: pointer; box-shadow: 0 0 20px rgba(0,255,0,0.2);}
         .tab-content { display: none; flex: 1; padding: 15px; overflow-y: auto; z-index: 150; margin: 0 15px; transform-style: preserve-3d; }
         .tab-content.active { display: flex; flex-direction: column; align-items: center; animation: fadeUp 0.5s var(--spring); position: relative; }
@@ -758,7 +775,7 @@
 
         function checkEventCompletion() {
             const totalRequired = phonesLight.length + phonesRoom.length + phonesKitchen.length + phonesMall.length; const collectedUnique = calculateGuestCount();
-            if (collectedUnique >= totalRequired && !inventoryData.some(p => p.id === "sharp_r9")) { inventoryData.push(goldPhoneReward); safeStorage.setItem('party_inventory', JSON.stringify(inventoryData)); if (tg.sendData) { try { tg.sendData(JSON.stringify({ action: "event_drop", phone_id: goldPhoneReward.id, is_dark: isDarkSide, name: goldPhoneReward.name, is_new: true })); } catch(e) {} } muffleAudio(true); const conf = document.getElementById('customConfirm'); document.getElementById('confirmText').innerText = "Ивент esPhones пройден! Ваша награда - Sharp Aquos R9 Pro. Один из самых редких телефонов в боте!"; document.getElementById('confirmYesBtn').innerText = "Забрать награду"; confirmAction = 'event_complete'; conf.style.display = 'flex'; }
+            if (collectedUnique >= totalRequired && !inventoryData.some(p => p.id === "sharp_r9")) { inventoryData.push(goldPhoneReward); safeStorage.setItem('party_inventory', JSON.stringify(inventoryData)); if (tg && tg.sendData) { try { tg.sendData(JSON.stringify({ action: "event_drop", phone_id: goldPhoneReward.id, is_dark: isDarkSide, name: goldPhoneReward.name, is_new: true })); } catch(e) {} } muffleAudio(true); const conf = document.getElementById('customConfirm'); document.getElementById('confirmText').innerText = "Ивент esPhones пройден! Ваша награда - Sharp Aquos R9 Pro. Один из самых редких телефонов в боте!"; document.getElementById('confirmYesBtn').innerText = "Забрать награду"; confirmAction = 'event_complete'; conf.style.display = 'flex'; }
         }
 
         function playLevelUpTransition(nextLocFn, locName) {
@@ -877,7 +894,6 @@
             requestAnimationFrame(drawWave);
             if (!document.getElementById('mg-radio').classList.contains('active') || !document.getElementById('minigameContainer').classList.contains('active')) return; 
             try {
-                // АВТОМАТИЧЕСКАЯ РЕГУЛИРОВКА ЕСЛИ ШИРИНА 0
                 if (waveCanvas.width === 0 || waveCanvas.height === 0) { resizeCanvases(); }
                 const w = waveCanvas.width; const h = waveCanvas.height; if (w === 0 || h === 0) return; timeAcc += 0.05;
                 wctx.fillStyle = 'rgba(2, 10, 2, 0.4)'; wctx.fillRect(0, 0, w, h);
@@ -928,7 +944,6 @@
             requestAnimationFrame(drawRadar);
             if (!document.getElementById('mg-radar').classList.contains('active') || !document.getElementById('minigameContainer').classList.contains('active')) return;
             try {
-                // АВТОМАТИЧЕСКАЯ РЕГУЛИРОВКА ЕСЛИ ШИРИНА 0
                 if (radarCanvas.width === 0 || radarCanvas.height === 0) { resizeCanvases(); }
                 const w = radarCanvas.width; const h = radarCanvas.height; if (w === 0) return;
                 rctx.clearRect(0,0,w,h); const cx = w/2; const cy = h/2; const r = Math.min(cx, cy) - 5;
