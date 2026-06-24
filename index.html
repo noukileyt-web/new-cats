@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>Ивент: esPhones</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap');
+
+        :root {
+            --bg-current: linear-gradient(135deg, #fce4ec 0%, #e0f7fa 100%);
+            --color-text: #4a3b32;
+            --color-panel: rgba(255, 255, 255, 0.4);
+            --font-main: 'Courier Prime', monospace;
+            --spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            font-family: var(--font-main); height: 100vh; width: 100vw; overflow: hidden;
+            background-color: #050505; color: var(--color-text); perspective: 1000px;
+            touch-action: none;
+        }
+
+        /* АНАЛОГОВЫЙ CRT-ЭФФЕКТ */
+        .crt-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 8500; pointer-events: none;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%);
+            background-size: 100% 3px; opacity: 0.4; mix-blend-mode: overlay;
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.8);
+        }
+        body.is-dark .crt-overlay { opacity: 0.8; mix-blend-mode: multiply; }
+
+        /* ПРЕЛОАДЕР */
+        #appLoadingScreen {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #0d0d0d; z-index: 10000; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; color: #fff; transition: opacity 0.8s;
+        }
+        .loading-logo {
+            font-size: 24px; font-weight: bold; letter-spacing: 4px; margin-bottom: 20px;
+            text-transform: uppercase; text-shadow: 0 0 10px rgba(255,255,255,0.3); animation: text-glitch 3s infinite;
+        }
+        .loading-bar-container { width: 70%; max-width: 300px; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; }
+        .loading-bar-fill { width: 0%; height: 100%; background: #fff; box-shadow: 0 0 10px #fff; transition: width 0.1s ease; }
+
+        /* ИГРОВОЙ ЭКРАН */
+        #appScreen {
+            display: none; flex-direction: column; height: 100%; width: 100%;
+            background: var(--bg-current); background-size: cover; background-position: center;
+            transition: filter 1.5s ease, opacity 1.5s ease, transform 0.5s; transform-style: preserve-3d; -webkit-transform-style: preserve-3d;
+            transform: scale(1.05); -webkit-transform: scale(1.05); touch-action: none;
+        }
+        body.is-dark #appScreen {
+            mask-image: radial-gradient(circle at var(--light-x, 50%) var(--light-y, 50%), rgba(0,0,0,1) 5%, rgba(0,0,0,0.85) 25%, rgba(0,0,0,0.1) 60%, transparent 100%);
+            -webkit-mask-image: radial-gradient(circle at var(--light-x, 50%) var(--light-y, 50%), rgba(0,0,0,1) 5%, rgba(0,0,0,0.85) 25%, rgba(0,0,0,0.1) 60%, transparent 100%);
+        }
+
+        #fogCanvas, #particlesCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        #fogCanvas { z-index: 10; mix-blend-mode: screen; opacity: 0.55; transform: translateZ(10px); }
+        #particlesCanvas { z-index: 65; transform: translateZ(40px); }
+        .mold-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 45; opacity: 0; 
+            background-image: url('assets/mold_overlay.png'); background-size: 100% 100%; background-position: center;
+            transition: opacity 2s ease; mix-blend-mode: multiply; transform: translateZ(5px);
+        }
+        body.is-dark .mold-overlay { opacity: 0.9; }
+
+        /* ИНТЕРАКТИВНЫЙ ТУТОРИАЛ */
+        #interactiveTutOverlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 5000;
+            background: radial-gradient(circle at center, #1e2024 0%, #050505 100%);
+            display: flex; flex-direction: column; justify-content: center; align-items: center; color: #fff;
+            transition: opacity 1s ease;
+        }
+        .tut-stage {
+            display: none; flex-direction: column; align-items: center; width: 90%; max-width: 400px;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 24px;
+            padding: 30px 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.8); backdrop-filter: blur(15px);
+            text-align: center; animation: fadeUp 0.5s var(--spring) forwards; position: relative;
+        }
+        .tut-title { font-size: 22px; font-weight: bold; color: #5f5; margin-bottom: 15px; letter-spacing: 1px; text-transform: uppercase; text-shadow: 0 0 10px rgba(85,255,85,0.5); }
+        .tut-desc { font-size: 14px; color: #ccc; line-height: 1.6; margin-bottom: 25px; font-family: monospace; }
+        
+        .tut-box-fake {
+            font-size: 80px; filter: drop-shadow(0 10px 20px rgba(0,0,0,0.5)); cursor: pointer;
+            animation: t-bounce 2s infinite ease-in-out, pulse-glow 1.5s infinite; margin-bottom: 20px; pointer-events: auto;
+            width: 120px; height: 120px; display: flex; justify-content: center; align-items: center;
+            background: rgba(0,0,0,0.4); border-radius: 20px; border: 2px dashed #5f5;
+        }
+        @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 10px rgba(85,255,85,0.2); } 50% { box-shadow: 0 0 30px rgba(85,255,85,0.8); } }
+
+        .tut-radio-fake { width: 100%; height: 100px; background: #020a02; border: 2px solid #1a331a; border-radius: 12px; margin-bottom: 15px; position: relative; overflow: hidden; }
+        .hand-pointer { position: absolute; font-size: 40px; right: 20%; bottom: 30%; animation: swipe-hand 2s infinite ease-in-out; pointer-events: none; filter: drop-shadow(0 5px 5px rgba(0,0,0,0.5)); }
+        @keyframes swipe-hand { 0%, 100% { transform: translateX(0) scale(1); } 50% { transform: translateX(-50px) scale(0.9); } }
+
+        .btn-tut {
+            background: rgba(85,255,85,0.15); border: 1px solid #5f5; color: #5f5; width: 100%;
+            padding: 16px; font-family: inherit; font-size: 16px; font-weight: bold; cursor: pointer;
+            border-radius: 16px; transition: 0.3s; pointer-events: auto; display: none; margin-top: 10px;
+            box-shadow: 0 0 15px rgba(85,255,85,0.2);
+        }
+        .btn-tut:active { transform: scale(0.95); }
+
+        .tut-decline { margin-top: 20px; color: #888; font-size: 12px; text-decoration: underline; cursor: pointer; pointer-events: auto; padding: 10px;}
+
+        /* ИЗНАНКА ТУТОРИАЛ (АНАЛОГОВЫЙ ХОРРОР) */
+        #tutTeaseScreen {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 5001;
+            background: #020000; flex-direction: column; justify-content: center; align-items: center; overflow: hidden;
+        }
+        .tease-doc {
+            width: 90%; max-width: 500px; border: 2px solid #ff0000; padding: 30px; background: rgba(20,0,0,0.8);
+            box-shadow: inset 0 0 50px rgba(255,0,0,0.2), 0 0 30px rgba(255,0,0,0.5); position: relative;
+        }
+        .tease-doc::before { content: "СЕКРЕТЫ АНГАРА"; position: absolute; top: -15px; left: 20px; background: #020000; color: #f00; padding: 0 10px; font-weight: bold; font-family: monospace; }
+        .tease-text { color: #ff3333; font-size: 18px; font-weight: bold; font-family: monospace; line-height: 1.6; text-align: left; animation: text-glitch 0.3s infinite; text-shadow: 0 0 10px red; }
+        
+        #tutOopsScreen {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 5002;
+            background: linear-gradient(135deg, #fce4ec 0%, #e0f7fa 100%); flex-direction: column; justify-content: center; align-items: center;
+        }
+        .oops-box { background: rgba(255,255,255,0.85); padding: 30px; border-radius: 24px; text-align: center; width: 85%; box-shadow: 0 20px 50px rgba(0,0,0,0.15); backdrop-filter: blur(10px); }
+        .oops-title { color: #d32f2f; font-size: 26px; font-weight: bold; margin-bottom: 15px; }
+        .oops-desc { color: #4a3b32; font-size: 16px; margin-bottom: 25px; line-height: 1.5; font-family: sans-serif; font-weight: bold;}
+        .btn-oops { background: #4a3b32; color: #fff; border: none; padding: 16px; width: 100%; border-radius: 16px; font-size: 16px; font-weight: bold; cursor: pointer; pointer-events: auto; }
+
+        @keyframes t-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px) scale(1.05); } }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ИГРОВОЙ ИНТЕРФЕЙС */
+        .nav {
+            display: flex; justify-content: space-around; padding: 15px 10px; margin: 15px 15px 0 15px; z-index: 200;
+            background: linear-gradient(180deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.1) 100%);
+            backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255,255,255,0.3); border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15), inset 0 2px 5px rgba(255,255,255,0.5); transform: translateZ(20px);
+        }
+        body.is-dark .nav { background: linear-gradient(180deg, rgba(30,40,30,0.8) 0%, rgba(10,15,10,0.9) 100%); border-color: rgba(100,255,100,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.8), inset 0 2px 5px rgba(255,255,255,0.1); }
+        .nav-btn { background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.1); padding: 10px 15px; color: inherit; font-family: inherit; font-weight: bold; border-radius: 12px; cursor: pointer; transition: 0.3s var(--spring); box-shadow: inset 0 2px 4px rgba(255,255,255,0.3); font-size: 13px; pointer-events: auto !important; touch-action: auto !important; }
+        body.is-dark .nav-btn { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); color: #ccc; }
+        .nav-btn:active { transform: scale(0.9); }
+
+        /* КНОПКА ТЕРМИНАЛА ВНЕ ПРЕДЕЛОВ ПАРАЛЛАКСА */
+        #terminalTrigger { display: block; position: fixed; bottom: 30px; right: 20px; z-index: 8600; background: rgba(10,20,10,0.9); padding: 12px; border-radius: 50%; color: #5f5; border: 1px solid #3c3; font-size: 20px; transition: 0.3s var(--spring); pointer-events: auto !important; cursor: pointer; box-shadow: 0 0 20px rgba(0,255,0,0.2);}
+        .tab-content { display: none; flex: 1; padding: 15px; overflow-y: auto; z-index: 150; margin: 0 15px; transform-style: preserve-3d; }
+        .tab-content.active { display: flex; flex-direction: column; align-items: center; animation: fadeUp 0.5s var(--spring); position: relative; }
+
+        /* КОРОБКА / ПОДАРКИ */
+        #giftParallaxWrapper { margin-top: 40px; transform-style: preserve-3d; will-change: transform; }
+        @keyframes eerie-float { 0%, 100% { transform: translateY(0px) rotate(0deg); } 50% { transform: translateY(-10px) rotate(1deg); } }
+        .gift-container { width: 180px; height: 180px; display: flex; justify-content: center; align-items: center; font-size: 90px; filter: drop-shadow(0 15px 25px rgba(0,0,0,0.5)); animation: eerie-float 5s infinite ease-in-out; background-size: contain; background-repeat: no-repeat; background-position: center; cursor: pointer; transform: translateZ(80px); }
+        .gift-container.disabled { filter: drop-shadow(0 10px 10px rgba(0,0,0,0.8)) grayscale(0.8); opacity: 0.7; animation: none; cursor: not-allowed; }
+        .shake { animation: shake-violent 0.08s infinite !important; filter: drop-shadow(0 0 20px red); }
+        @keyframes shake-violent { 0%, 100% { transform: translate(3px, 3px); } 50% { transform: translate(-3px, -3px); } }
+
+        /* БУМАГА */
+        .paper-notification { background-image: url('assets/old_paper.png'); background-color: #fdf5e6; background-size: 100% 100%; width: 100%; min-height: 140px; padding: 25px 35px; margin-top: 40px; font-size: 12px; color: #2b1f1d; transform: rotate(-1.5deg) translateZ(15px); box-shadow: 5px 15px 30px rgba(0,0,0,0.25); z-index: 100; border-radius: 4px; transition: 0.5s; cursor: pointer; }
+        body.is-dark .paper-notification { background-color: #24201c; color: #bcaaa4; background-blend-mode: multiply; }
+        .paper-timer { font-weight: bold; border-bottom: 1px dashed currentColor; padding-bottom: 4px; margin-bottom: 6px; }
+
+        /* ШКАЛА ГОСТЕЙ */
+        .guest-status { width: 85%; text-align: left; font-size: 13px; font-weight: bold; margin-top: 20px; letter-spacing: 1px; transform: translateZ(10px); text-transform: uppercase;}
+        .guest-progress-container { width: 85%; background: rgba(0,0,0,0.2); border: 1px solid var(--color-text); height: 14px; margin-top: 6px; border-radius: 8px; overflow: hidden; transform: translateZ(10px); box-shadow: inset 0 2px 5px rgba(0,0,0,0.3); }
+        .guest-progress-bar { height: 100%; width: 0%; background: var(--color-text); transition: width 1s var(--spring); }
+
+        /* МИНИ-ИГРЫ ОБЩИЕ СТИЛИ */
+        .game-card { background: var(--color-panel); backdrop-filter: blur(10px); width: 100%; padding: 20px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.15); margin-top: 15px; text-align: center; position: relative; z-index: 1000; transform: translateZ(40px); }
+        .minigame-wrapper { display: none; flex-direction: column; width: 100%; align-items: center; }
+        .minigame-wrapper.active { display: flex; animation: fadeUp 0.5s forwards; }
+
+        /* ИГРА 0: ОСЦИЛЛОГРАФ */
+        .oscilloscope-container { position: relative; width: 100%; height: 140px; background: #020a02; border-radius: 12px; border: 2px solid #1a331a; overflow: hidden; box-shadow: inset 0 0 30px rgba(0,255,0,0.15); margin: 15px 0; }
+        .oscilloscope-container::after { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%); background-size: 100% 4px; pointer-events: none; z-index: 10; }
+        #waveCanvas { width: 100%; height: 100%; display: block; }
+        .dial-slider { width: 100%; -webkit-appearance: none; background: rgba(0,0,0,0.4); height: 12px; border-radius: 6px; outline: none; margin-top: 10px; position: relative; z-index: 2000; pointer-events: auto; touch-action: pan-x; }
+        .dial-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 26px; height: 26px; border-radius: 50%; background: #5f5; border: 2px solid #fff; cursor: pointer; box-shadow: 0 0 12px rgba(85,255,85,0.9); }
+
+        /* ИГРА 1: ДЕШИФРАТОР */
+        .decrypt-screen { font-size: 32px; font-weight: bold; font-family: monospace; letter-spacing: 10px; color: #f33; background: #111; padding: 20px; border-radius: 10px; border: 2px solid #f33; text-shadow: 0 0 15px red; margin: 20px 0; width: 100%; text-align: center; }
+        .btn-action { background: transparent; border: 2px solid #f33; color: #f33; padding: 15px 30px; font-size: 16px; font-family: monospace; font-weight: bold; border-radius: 10px; cursor: pointer; pointer-events: auto; transition: 0.2s; box-shadow: inset 0 0 10px rgba(255,0,0,0.2); }
+        .btn-action:active { transform: scale(0.95); background: rgba(255,0,0,0.2); }
+
+        /* ИГРА 2: РАДАР */
+        .radar-container { position: relative; width: 180px; height: 180px; background: #001100; border-radius: 50%; border: 3px solid #0f0; margin: 20px 0; overflow: hidden; box-shadow: 0 0 30px rgba(0,255,0,0.2); pointer-events: auto; cursor: crosshair;}
+        #radarCanvas { width: 100%; height: 100%; display: block; }
+
+        /* ИГРА 3: РЕАКТОР / СВЕЧА */
+        .reactor-bar { width: 40px; height: 200px; background: #111; border: 2px solid #aaa; border-radius: 20px; position: relative; overflow: hidden; margin: 20px auto; }
+        .reactor-safe-zone { position: absolute; bottom: 40%; height: 20%; width: 100%; background: rgba(0,255,0,0.3); border-top: 2px dashed #0f0; border-bottom: 2px dashed #0f0; }
+        .reactor-fill { position: absolute; bottom: 0; width: 100%; height: 0%; background: linear-gradient(0deg, #f00 0%, #ff0 50%, #f00 100%); transition: height 0.1s linear; }
+        .btn-hold { background: #333; color: #fff; padding: 20px; border-radius: 50%; width: 80px; height: 80px; font-weight: bold; font-family: monospace; border: 4px solid #555; pointer-events: auto; user-select: none; }
+        .btn-hold:active { border-color: #f00; background: #500; transform: scale(0.95); }
+
+        /* ОБМЕННЫЙ ПУНКТ (ЛАВКА) */
+        .shop-box { background: var(--color-panel); width: 100%; padding: 15px; border-radius: 12px; border: 1px dashed var(--color-text); margin-bottom: 20px; text-align: left; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%; padding-bottom: 80px; transform: translateZ(10px);}
+        .card { background: var(--color-panel); backdrop-filter: blur(10px); padding: 15px; border-radius: 16px; text-align: center; border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 5px 15px rgba(0,0,0,0.15); transition: 0.3s var(--spring);}
+        body.is-dark .card { border-color: rgba(255,255,255,0.05); }
+        .lore-entry { background: var(--color-panel); backdrop-filter: blur(10px); padding: 15px; margin-bottom: 10px; border-left: 4px solid currentColor; font-size: 13px; border-radius: 8px;}
+
+        /* МОДАЛКА */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(20px); z-index: 9000; justify-content: center; align-items: center; opacity: 0; transition: opacity 0.3s ease; }
+        .modal-content { background: var(--color-panel); padding: 30px 20px; width: 85%; text-align: center; border: 1px solid rgba(255,255,255,0.2); border-radius: 28px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); transform: scale(0.7) translateY(20px); transition: all 0.4s var(--spring); }
+        .modal.show { opacity: 1; } .modal.show .modal-content { transform: scale(1) translateY(0); }
+        .phone-image { width: 160px; height: 160px; margin: 0 auto 20px; background: rgba(0,0,0,0.05); border-radius: 24px; display: flex; justify-content: center; align-items: center; font-size: 80px; filter: drop-shadow(0 15px 20px rgba(0,0,0,0.3)); background-size: contain; background-repeat: no-repeat; background-position: center; }
+
+        #customConfirm { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); backdrop-filter: blur(20px); z-index: 9500; justify-content: center; align-items: center; }
+        .confirm-card { background: var(--color-panel); padding: 30px 20px; width: 85%; max-width: 340px; text-align: center; border: 1px solid rgba(255,0,0,0.4); border-radius: 24px; box-shadow: 0 20px 60px rgba(255,0,0,0.2); color: var(--color-text); font-family: var(--font-main); }
+        .confirm-btn { width: 100%; padding: 12px; margin-bottom: 10px; font-family: inherit; font-size: 14px; font-weight: bold; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.1); color: inherit; cursor: pointer; transition: 0.3s var(--spring); pointer-events: auto !important; touch-action: auto !important; }
+        .confirm-btn:active { transform: scale(0.95); }
+        .confirm-btn.cancel { background: rgba(0,0,0,0.5); border-color: rgba(0,0,0,0.5); }
+
+        /* ПЕРЕХОДЫ И ТЕРМИНАЛ */
+        #flashOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #fff; z-index: 8001; pointer-events: none; opacity: 0; display: none; transition: opacity 0.5s ease-out; }
+        #transScreen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 8000; display: none; flex-direction: column; justify-content: center; align-items: center; }
+        .trans-sub { color: #fff; font-size: 16px; letter-spacing: 2px; margin-bottom: 10px; opacity: 0.8;}
+        .trans-title { color: #d32f2f; font-size: 38px; font-weight: bold; letter-spacing: 6px; text-transform: uppercase; text-shadow: 0 0 20px rgba(211,47,47,0.5); text-align: center;}
+        
+        /* ПРИПОДНЯТЫЙ И СДВИГНУТЫЙ ТЕРМИНАЛ НА МОБИЛКАХ */
+        #terminalScreen { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #010a01; 
+            color: #3f3; z-index: 9000; display: none; flex-direction: column; 
+            padding: 20px 20px 80px 20px; font-family: monospace; border-radius: 10px; 
+            overflow: hidden; box-shadow: inset 0 0 100px rgba(0,0,0,0.9), inset 0 0 30px rgba(0,255,0,0.1); 
+        }
+        #terminalScreen::before { content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06)); z-index: 2; background-size: 100% 3px, 3px 100%; pointer-events: none; opacity: 0.5; }
+        .term-inner { transform: perspective(800px) rotateX(2deg) scale(0.98); flex: 1; display: flex; flex-direction: column; z-index: 5;}
+        .term-input { background: transparent; border: none; outline: none; color: #3f3; font-family: inherit; font-size: 16px; width: 90%; text-shadow: 0 0 5px #3f3; }
+
+        #levelUpOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); z-index: 9800; display: none; justify-content: center; align-items: center; flex-direction: column; opacity: 0; transition: opacity 0.5s; }
+        #levelUpNumber { font-size: 120px; font-weight: bold; font-family: monospace; transition: all 0.4s var(--spring); text-shadow: 0 0 30px currentColor; color: #fff;}
+
+        #vhsTransition { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; display: none; pointer-events: none; background: repeating-linear-gradient(0deg, #fff 0px, #000 5px, #fff 10px); opacity: 0; mix-blend-mode: difference; }
+        @keyframes vhs-tear { 0% { opacity: 0; filter: invert(0) blur(0px); transform: skewX(0deg); } 20% { opacity: 1; filter: invert(1) blur(5px); transform: skewX(50deg); background: red; } 40% { opacity: 0.8; filter: invert(1); transform: skewX(-50deg); background: blue; } 60% { opacity: 1; filter: invert(0) blur(10px); transform: skewX(20deg); background: repeating-linear-gradient(90deg, #fff, #000 10px); } 100% { opacity: 0; filter: invert(0) blur(0px); transform: skewX(0deg); } }
+        @keyframes text-glitch { 0% { transform: translate(0); } 25% { transform: translate(-3px, 2px); } 50% { transform: translate(3px, -2px); } 75% { transform: translate(-3px, -2px); } }
+
+        /* ПРИПОДНЯТАЯ АНИМАЦИЯ ГОЛОСОВОГО АССИСТЕНТА */
+        #storyEventOverlay {
+            position: fixed; bottom: 85px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 400px;
+            display: none; flex-direction: column; align-items: center; z-index: 8000; pointer-events: none;
+            opacity: 0; transition: opacity 1s ease;
+        }
+        .siri-orb {
+            width: 40px; height: 40px; border-radius: 50%; background: radial-gradient(circle, #fff, #f00, #000);
+            animation: siri-pulse 2s infinite alternate, siri-rotate 5s infinite linear; filter: blur(5px); mix-blend-mode: screen; margin-bottom: 10px;
+        }
+        .siri-text { color: #fcc; font-size: 14px; font-family: monospace; text-shadow: 0 0 10px red; text-align: center; letter-spacing: 1px;}
+        @keyframes siri-pulse { 0% { transform: scale(0.8); filter: hue-rotate(0deg) blur(5px); } 100% { transform: scale(1.5); filter: hue-rotate(90deg) blur(10px); } }
+        @keyframes siri-rotate { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    </style>
+</head>
+<body>
+    <div class="crt-overlay"></div>
+
+    <div id="appLoadingScreen">
+        <div class="loading-logo">Ивент - esPhones</div>
+        <div class="loading-bar-container"><div class="loading-bar-fill" id="appLoadingBar"></div></div>
+    </div>
+
+    <audio id="bgMusic" src="assets/birthday_ambient.mp3" loop></audio>
+
+    <!-- ИНТЕРАКТИВНЫЙ ТУТОРИАЛ -->
+    <div id="interactiveTutOverlay">
+        
+        <!-- Шаг 1: Коробка -->
+        <div class="tut-stage" id="tutStage0" style="display: flex;">
+            <h2 class="tut-title">Инструктаж</h2>
+            <p class="tut-desc" id="tutBoxText">Нажмите на коробку, чтобы открыть её и получить устройство.</p>
+            <div class="tut-box-fake" id="tutFakeBox" onclick="tutOpenBox()">🎁</div>
+            <button class="btn-tut" id="tutBoxBtn" onclick="tutNext(1)">Отлично. Дальше!</button>
+            <div class="tut-decline" onclick="declineInvite()">Я не хочу участвовать (Выход)</div>
+        </div>
+
+        <!-- Шаг 2: Radio -->
+        <div class="tut-stage" id="tutStage1">
+            <h2 class="tut-title">Взлом Эфира</h2>
+            <p class="tut-desc" id="tutRadioText">Двигайте ползунок так, чтобы зеленая волна совпала с красной.</p>
+            <div class="tut-radio-fake">
+                <canvas id="tutWaveCanvas" width="300" height="100"></canvas>
+                <div class="hand-pointer" id="tutHand">👆</div>
+            </div>
+            <input type="range" class="dial-slider" id="tutDial" min="10" max="100" value="10" oninput="checkTutRadio(this.value)">
+            <button class="btn-tut" id="tutRadioBtn" onclick="tutNext(2)">Гениально. Дальше!</button>
+        </div>
+
+        <!-- Шаг 3: Магазин -->
+        <div class="tut-stage" id="tutStage2">
+            <h2 class="tut-title">Лавка</h2>
+            <div style="font-size: 60px; margin-bottom: 15px; text-shadow: 0 0 20px rgba(255,255,255,0.5);">🏪</div>
+            <p class="tut-desc">Полученные билеты можно тратить на мгновенный сброс таймера коробок или монеты.</p>
+            <p style="font-size: 11px; color: #888; margin-bottom: 20px;">Соберите все 19 телефонов на корпоративе esPhones, чтобы забрать главный приз!</p>
+            <button class="btn-tut" style="display: block;" onclick="startTutTease()">Завершить обучение</button>
+        </div>
+
+    </div>
+
+    <!-- ТИЗЕР ИЗНАНКИ И ОШИБКА СИСТЕМЫ -->
+    <div id="tutTeaseScreen">
+        <div class="tease-doc">
+            <div class="tease-text">
+                ОТЧЕТ ОБ ИНЦИДЕНТЕ #409<br><br>
+                ████████ ВНИМАНИЕ ████████<br>
+                В СЕКТОРЕ "АНГАР" ЗАФИКСИРОВАНА НЕОПОЗНАННАЯ СУЩНОСТЬ.<br>
+                АНОМАЛИЯ РАСТЕТ. КОРОБКИ ДЫШАТ.<br>
+                ОНО СТОИТ ЗА ВАШЕЙ СПИНОЙ.<br><br>
+                СЕКРЕТЫ АНГАРА БУДУТ РАСКРЫТЫ.
+            </div>
+        </div>
+    </div>
+    
+    <div id="tutOopsScreen">
+        <div class="oops-box">
+            <div class="oops-title">Ой... 😅</div>
+            <div class="oops-desc">Кажется, я случайно загрузила старый страшный скрипт. Не обращай внимания! Приятного корпоратива! 🎉</div>
+            <button class="btn-oops" onclick="acceptInvite()">Войти в игру</button>
+        </div>
+    </div>
+
+    <!-- ТЕРМИНАЛ -->
+    <div id="terminalScreen">
+        <div class="term-inner">
+            <div style="margin-bottom: 15px; font-size: 14px; text-shadow: 0 0 5px #3f3;">=== esPhones SYSTEM TERMINAL v4.2.0 ===<br>СВЯЗЬ С СЕРВЕРОМ: АНОМАЛЬНАЯ<br>СИСТЕМА ГОТОВА К ВВОДУ ДИРЕКТИВ<br>==================================</div>
+            <div id="termOutput" style="margin-bottom: 15px; font-size: 13px; min-height: 40px; color: #aaa;"></div>
+            <div style="display:flex; align-items:center; z-index: 10;">
+                <span style="margin-right:10px;">C:\></span>
+                <input type="text" class="term-input" id="termInput" autofocus onkeydown="handleTerminalCommand(event)">
+            </div>
+            <!-- СДВИГ КНОПКИ ЗАКРЫТИЯ ВЫШЕ -->
+            <button class="btn-premium" style="margin-top:auto; margin-bottom: 30px; align-self: center; background:transparent; border: 1px solid #3f3; padding: 12px 24px; font-family:monospace; color: #3f3; z-index: 10; cursor: pointer;" onclick="closeTerminal()">[ ЗАКРЫТЬ ТЕРМИНАЛ ]</button>
+        </div>
+    </div>
+
+    <!-- ОКНА -->
+    <div id="customConfirm">
+        <div class="confirm-card">
+            <h2 style="font-size: 20px; font-weight: bold; margin-bottom: 15px; letter-spacing: 1px;">ПРЕДУПРЕЖДЕНИЕ</h2>
+            <p id="confirmText" style="font-size: 13px; line-height: 1.5; margin-bottom: 25px;">Открытие этого подарка навсегда изменит комнату. Вы готовы?</p>
+            <button class="confirm-btn" id="confirmYesBtn" style="color: #f33; border-color: #f33;">Да, готов</button>
+            <button class="confirm-btn cancel" onclick="closeConfirmModal()">Отмена</button>
+        </div>
+    </div>
+
+    <div id="levelUpOverlay">
+        <div style="color: #fff; font-size: 18px; letter-spacing: 4px; margin-bottom: 20px; opacity: 0.8;">СМЕНА ЛОКАЦИИ</div>
+        <div id="levelUpNumber">3</div>
+    </div>
+
+    <div id="flashOverlay"></div>
+    <div id="transScreen">
+        <div class="trans-sub">НОВАЯ ЛОКАЦИЯ</div>
+        <div class="trans-title" id="transLocName">КУХНЯ</div>
+        <div class="trans-load" style="color:#fff; margin-top:20px; font-family:monospace;">ЗАГРУЗКА<span>.</span><span>.</span><span>.</span></div>
+    </div>
+    <div id="vhsTransition"></div>
+
+    <!-- АНИМАЦИЯ СОБЫТИЙ (JUMPSCARE) -->
+    <div id="storyEventOverlay">
+        <div class="siri-orb"></div>
+        <div class="siri-text" id="storyEventText">...</div>
+    </div>
+
+    <!-- ГЛАВНЫЙ ЭКРАН ИГРЫ -->
+    <div id="appScreen">
+        <canvas id="fogCanvas"></canvas>
+        <canvas id="particlesCanvas"></canvas>
+        <div class="mold-overlay" id="moldOverlay"></div>
+
+        <div class="nav">
+            <button class="nav-btn" onclick="openTab('gacha')">Стол</button>
+            <button class="nav-btn" onclick="openTab('minigameContainer')">Терминал</button>
+            <button class="nav-btn" onclick="openTab('inventory')">Находки</button>
+            <button class="nav-btn" onclick="openTab('lore')">Заметки</button>
+        </div>
+
+        <div id="gacha" class="tab-content active">
+            <div class="guest-status">Прибытие гостей: <span id="guestCountLabel">0</span> / <span id="totalGuestsLabel">19</span></div>
+            <div class="guest-progress-container"><div class="guest-progress-bar" id="guestProgressBar"></div></div>
+
+            <div id="giftParallaxWrapper">
+                <div class="gift-container" id="giftBox" onclick="openGift()">🎁</div>
+            </div>
+            
+            <p id="cooldownLabel" style="font-size: 12px; margin-top: 15px; font-weight: bold; color: #ff3333; display: none; text-shadow: 0 2px 4px rgba(0,0,0,0.5);"></p>
+
+            <div class="paper-notification" id="paperNotification" onclick="playPaperWhisper()">
+                <div class="paper-timer" id="paperTimerText">До конца корпоратива: ?</div>
+                <div id="paperStatusText">В этой комнате никого нет. Пока нет.</div>
+                <span id="devBypassBtn" onclick="resetTestCD(); event.stopPropagation();" style="display:none; font-size:10px; font-weight:bold; color: #888; text-decoration: underline; cursor: pointer; margin-top: 15px;">[Сброс КД (Dev)]</span>
+            </div>
+        </div>
+
+        <!-- КОНТЕЙНЕР ДЛЯ МИНИ-ИГР (ДИНАМИЧЕСКИЙ) -->
+        <div id="minigameContainer" class="tab-content">
+            
+            <!-- УРОВЕНЬ 0: РАДИО -->
+            <div id="mg-radio" class="minigame-wrapper active">
+                <h2 style="margin-bottom: 10px;">Взлом эфира</h2>
+                <p style="font-size: 12px; text-align: center; opacity: 0.8;">Настройте частоту ползунком, чтобы поймать сигнал.</p>
+                <div class="game-card">
+                    <div class="oscilloscope-container">
+                        <canvas id="waveCanvas"></canvas>
+                    </div>
+                    <div style="font-size:14px; font-weight:bold; margin-bottom: 5px;">СТАБИЛИЗАЦИЯ: <span id="stabilizeProgressLabel">0%</span></div>
+                    <input type="range" class="dial-slider" id="dialSlider" min="10" max="100" value="50" oninput="adjustFrequency(this.value)">
+                </div>
+            </div>
+
+            <!-- УРОВЕНЬ 1: ДЕШИФРАТОР -->
+            <div id="mg-decrypt" class="minigame-wrapper">
+                <h2 style="margin-bottom: 10px; color:#f33;">Дешифратор Архива</h2>
+                <p style="font-size: 12px; text-align: center; opacity: 0.8;">Остановите код, когда он совпадет с целевым.</p>
+                <div class="game-card" style="border-color: #f33;">
+                    <div style="color:#aaa; font-size:12px;">ЦЕЛЕВОЙ КОД: <span id="targetDecCode" style="color:#fff; font-weight:bold;">1999</span></div>
+                    <div class="decrypt-screen" id="currentDecCode">0000</div>
+                    <button class="btn-action" onclick="checkDecryption()">ЗАФИКСИРОВАТЬ</button>
+                </div>
+            </div>
+
+            <!-- УРОВЕНЬ 2: РАДАР -->
+            <div id="mg-radar" class="minigame-wrapper">
+                <h2 style="margin-bottom: 10px; color:#0f0;">Сканер Аномалий</h2>
+                <p style="font-size: 12px; text-align: center; opacity: 0.8;">Нажмите на радар, когда линия пройдет над целью.</p>
+                <div class="game-card" style="border-color: #0f0;">
+                    <div class="radar-container" onclick="checkRadarClick()">
+                        <canvas id="radarCanvas"></canvas>
+                    </div>
+                    <div style="font-size:14px; font-weight:bold; color:#0f0;" id="radarStatusLabel">СКАНИРОВАНИЕ...</div>
+                </div>
+            </div>
+
+            <!-- УРОВЕНЬ 3: РЕАКТОР -->
+            <div id="mg-reactor" class="minigame-wrapper">
+                <h2 style="margin-bottom: 10px; color:#ff0;">Ядро Сборки</h2>
+                <p style="font-size: 12px; text-align: center; opacity: 0.8;">Удерживайте кнопку, чтобы давление было в зеленой зоне.</p>
+                <div class="game-card" style="border-color: #ff0;">
+                    <div class="reactor-bar">
+                        <div class="reactor-safe-zone"></div>
+                        <div class="reactor-fill" id="reactorFill"></div>
+                    </div>
+                    <div style="font-size:14px; font-weight:bold; margin-bottom: 15px;">СТАБИЛЬНОСТЬ: <span id="reactorTimeLabel">0.0</span>с / 4.0с</div>
+                    <button class="btn-hold" id="reactorBtn">ПУСК</button>
+                </div>
+            </div>
+
+            <div id="minigameResult" style="margin-top: 15px; font-size: 13px; font-weight: bold; color: #55ff55; text-align: center; min-height: 20px;"></div>
+            <div id="minigameTimerLabel" style="font-size: 12px; margin-top: 15px; font-weight: bold; color: #ff3333; display: none;"></div>
+        </div>
+
+        <div id="inventory" class="tab-content">
+            <div class="shop-box">
+                <div style="font-weight:bold; margin-bottom: 10px; font-size: 14px; border-bottom: 1px dashed currentColor; padding-bottom: 5px;">
+                    🏪 ЛАВКА (🎟️ <span id="ticketCountLabel">0</span> | 🪙 <span id="coinCountLabel">0</span>)
+                </div>
+                <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 10px;">
+                    <span style="font-size:12px;">Обменять 5 🎟️ на 500 🪙:</span>
+                    <button class="nav-btn" style="padding: 6px 12px; font-size:11px;" onclick="buyCoins()">Обменять</button>
+                </div>
+                <div style="display:flex; justify-content: space-between; align-items:center;">
+                    <span style="font-size:12px;">Сбросить КД коробки за 20 🎟️:</span>
+                    <button class="nav-btn" style="padding: 6px 12px; font-size:11px;" onclick="buyCdReset()">Сбросить</button>
+                </div>
+            </div>
+            <h3 style="margin-bottom:15px; width: 100%; text-align: left;">Ваш инвентарь:</h3>
+            <div class="grid" id="invGrid"></div>
+        </div>
+        
+        <div id="lore" class="tab-content"><div id="loreGrid"></div></div>
+    </div>
+
+    <!-- ВЫНЕСЕННАЯ КНОПКА КЛИЕНТА ТЕРМИНАЛА ВНЕ ПРЕДЕЛОВ 3D -->
+    <div id="terminalTrigger" onclick="openTerminal()">💻</div>
+
+    <div class="modal" id="dropModal">
+        <div class="modal-content">
+            <h2 id="dropName" style="font-size: 20px; margin-bottom: 25px; font-weight: 800;">Название</h2>
+            <div class="phone-image" id="dropImg"></div>
+            <button class="btn-premium" style="width: 100%; margin-top: 10px; padding: 15px; font-weight:bold; border-radius: 12px; background: rgba(0,0,0,0.8); color: #fff; border:1px solid #555; cursor:pointer;" onclick="closeModal()">Забрать</button>
+        </div>
+    </div>
+
+    <script>
+        const DAYS_REMAINING = "10 дней"; 
+        const tg = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.expand) ? window.Telegram.WebApp : { expand: () => {}, sendData: null, showAlert: alert, HapticFeedback: null };
+        tg.expand();
+
+        const safeStorage = {
+            getItem(key) { try { return localStorage.getItem(key); } catch (e) { return null; } },
+            setItem(key, value) { try { localStorage.setItem(key, value); } catch (e) { console.warn("Storage write blocked", e); } },
+            clear() { try { localStorage.clear(); } catch (e) {} }
+        };
+
+        // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ И ФИКС БАГОВ
+        let isTabActive = true;
+        document.addEventListener('visibilitychange', () => { isTabActive = !document.hidden; });
+
+        let audioCtx = null; let masterFilter = null; let isAudioUnlocked = false; let lastWhisperTime = 0; 
+        
+        function haptic(type) { if (tg.HapticFeedback) { if(type==='tick') tg.HapticFeedback.impactOccurred('light'); if(type==='heavy') tg.HapticFeedback.impactOccurred('heavy'); if(type==='error') tg.HapticFeedback.notificationOccurred('error'); if(type==='success') tg.HapticFeedback.notificationOccurred('success'); } }
+        function showSafeAlert(msg) { if (tg.showAlert) { tg.showAlert(msg); } else { alert(msg); } }
+        
+        let mX = 0.5, mY = 0.5;
+        function handleOrientation(e) { if(!e.gamma) return; mX = Math.max(0, Math.min(1, (e.gamma + 30) / 60)); mY = Math.max(0, Math.min(1, (e.beta - 10) / 60)); update3D(); }
+        
+        function unlockAudioAndGyro() {
+            if(isAudioUnlocked) return;
+            try { const AC = window.AudioContext || window.webkitAudioContext; if (AC) { audioCtx = new AC(); audioCtx.resume(); const osc = audioCtx.createOscillator(); osc.frequency.value = 20000; const gain = audioCtx.createGain(); gain.gain.value = 0.001; osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.01); } isAudioUnlocked = true; } catch(e){}
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') { DeviceOrientationEvent.requestPermission().then(ps => { if (ps === 'granted') window.addEventListener('deviceorientation', handleOrientation, true); }).catch(e => window.addEventListener('deviceorientation', handleOrientation, true)); } else { window.addEventListener('deviceorientation', handleOrientation, true); }
+        }
+        window.addEventListener('click', unlockAudioAndGyro, {once:true});
+        window.addEventListener('touchstart', unlockAudioAndGyro, {once:true});
+
+        // СИНТЕЗАТОР ХОРРОР-ЗВУКОВ
+        function playSynth(type) {
+            try {
+                if (!audioCtx) return; if (audioCtx.state === 'suspended') audioCtx.resume();
+                if (!masterFilter) { masterFilter = audioCtx.createBiquadFilter(); masterFilter.type = 'lowpass'; masterFilter.frequency.value = 20000; masterFilter.connect(audioCtx.destination); }
+                const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain(); osc.connect(gain); gain.connect(masterFilter);
+                
+                if (type === 'glitch') { osc.type = 'sawtooth'; osc.frequency.setValueAtTime(50, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(2000, audioCtx.currentTime + 0.2); gain.gain.setValueAtTime(0.5, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2); osc.start(); osc.stop(audioCtx.currentTime + 0.2); } 
+                else if (type === 'drone') { osc.type = 'sine'; osc.frequency.setValueAtTime(isDarkSide ? 30 : 60, audioCtx.currentTime); gain.gain.setValueAtTime(0.08, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 4.0); osc.start(); osc.stop(audioCtx.currentTime + 4.0); } 
+                else if (type === 'concussion') { osc.type = 'square'; osc.frequency.setValueAtTime(100, audioCtx.currentTime); gain.gain.setValueAtTime(0.4, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 2.0); osc.start(); osc.stop(audioCtx.currentTime + 2.0); const osc2 = audioCtx.createOscillator(); const gain2 = audioCtx.createGain(); osc2.connect(gain2); gain2.connect(masterFilter); osc2.type = 'sawtooth'; osc2.frequency.setValueAtTime(30, audioCtx.currentTime); osc2.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 3.0); gain2.gain.setValueAtTime(0.5, audioCtx.currentTime); gain2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 3.0); osc2.start(); osc2.stop(audioCtx.currentTime + 3.0); } 
+                else if (type === 'beep') { osc.type = 'sine'; osc.frequency.setValueAtTime(800, audioCtx.currentTime); gain.gain.setValueAtTime(0.1, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2); osc.start(); osc.stop(audioCtx.currentTime + 0.2); } 
+                else if (type === 'whisper') { osc.type = 'triangle'; osc.frequency.setValueAtTime(50, audioCtx.currentTime); gain.gain.setValueAtTime(0.2, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3); osc.start(); osc.stop(audioCtx.currentTime + 0.3); } 
+                else if (type === 'success') { osc.type = 'sine'; osc.frequency.setValueAtTime(440, audioCtx.currentTime); osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.1); gain.gain.setValueAtTime(0.1, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3); osc.start(); osc.stop(audioCtx.currentTime + 0.3); }
+                else if (type === 'tinnitus') { osc.type = 'sine'; osc.frequency.setValueAtTime(8000, audioCtx.currentTime); gain.gain.setValueAtTime(0, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0.05, audioCtx.currentTime + 1.0); gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 5.0); osc.start(); osc.stop(audioCtx.currentTime + 5.0); }
+            } catch(e){}
+        }
+        function muffleAudio(muffle) { if (audioCtx && masterFilter) { try { masterFilter.frequency.setTargetAtTime(muffle ? 400 : 20000, audioCtx.currentTime, 0.4); } catch(e){} } }
+
+        // ИНТЕРАКТИВНЫЙ ТУТОРИАЛ
+        let tutRadioActive = false;
+        
+        function tutNext(stage) {
+            unlockAudioAndGyro(); haptic('tick'); playSynth('beep');
+            document.querySelectorAll('.tut-stage').forEach(el => el.style.display = 'none');
+            document.getElementById('tutStage' + stage).style.display = 'flex';
+            if (stage === 1) { tutRadioActive = true; drawTutWave(); document.getElementById('tutHand').style.display = 'none'; }
+        }
+
+        function tutOpenBox() {
+            unlockAudioAndGyro(); haptic('heavy'); playSynth('concussion');
+            const box = document.getElementById('tutFakeBox');
+            box.classList.add('shake');
+            setTimeout(() => {
+                box.classList.remove('shake'); box.innerText = '📱'; box.style.animation = 'none'; box.style.borderColor = '#fff';
+                document.getElementById('tutBoxText').innerHTML = "<b>Отлично!</b><br>Вы нашли первое устройство.";
+                document.getElementById('tutBoxBtn').style.display = 'block';
+                playSynth('success'); haptic('success');
+            }, 800);
+        }
+
+        const tutCanvas = document.getElementById('tutWaveCanvas');
+        const tutCtx = tutCanvas.getContext('2d', { alpha: false });
+        let tutTime = 0; let tutPlayerFreq = 10;
+        
+        function checkTutRadio(val) { tutPlayerFreq = val; haptic('tick'); document.getElementById('tutHand').style.display = 'none'; }
+
+        function drawTutWave() {
+            if (!tutRadioActive) return;
+            requestAnimationFrame(drawTutWave);
+            const w = tutCanvas.width; const h = tutCanvas.height; tutTime += 0.05;
+            tutCtx.fillStyle = '#020a02'; tutCtx.fillRect(0,0,w,h);
+            
+            tutCtx.strokeStyle = 'rgba(255, 60, 60, 0.8)'; tutCtx.lineWidth = 2; tutCtx.beginPath();
+            for(let x=0; x<w; x+=3) { let y = h/2 + Math.sin(x*0.06 + tutTime)*20; x===0?tutCtx.moveTo(x,y):tutCtx.lineTo(x,y); } tutCtx.stroke();
+            
+            tutCtx.strokeStyle = '#5f5'; tutCtx.lineWidth = 3; tutCtx.beginPath();
+            for(let x=0; x<w; x+=3) { let y = h/2 + Math.sin(x*(tutPlayerFreq/1000) + tutTime)*20; x===0?tutCtx.moveTo(x,y):tutCtx.lineTo(x,y); } tutCtx.stroke();
+
+            if (Math.abs(tutPlayerFreq - 60) < 5) {
+                tutRadioActive = false;
+                tutCtx.fillStyle = 'rgba(85,255,85,0.3)'; tutCtx.fillRect(0,0,w,h);
+                document.getElementById('tutRadioText').innerHTML = "<b style='color:#5f5'>Сигнал стабилизирован!</b><br>Получено +5 🎟️";
+                document.getElementById('tutRadioBtn').style.display = 'block';
+                document.getElementById('tutDial').disabled = true;
+                playSynth('success'); haptic('success');
+            }
+        }
+
+        function startTutTease() {
+            haptic('heavy'); playSynth('concussion'); playSynth('glitch');
+            document.getElementById('interactiveTutOverlay').style.display = 'none';
+            document.getElementById('tutTeaseScreen').style.display = 'flex';
+            
+            const vhs = document.getElementById('vhsTransition'); 
+            vhs.style.display = 'block'; vhs.style.animation = 'vhs-tear 0.6s forwards';
+            setTimeout(() => { vhs.style.display = 'none'; vhs.style.animation = 'none'; }, 600);
+
+            setTimeout(() => {
+                playSynth('beep'); haptic('tick');
+                document.getElementById('tutTeaseScreen').style.display = 'none';
+                document.getElementById('tutOopsScreen').style.display = 'flex';
+            }, 3500);
+        }
+
+        // ОСНОВНАЯ ИГРА
+        let isDarkSide = false, currentLoc = 'light', isOpening = false, isTransitioning = false;
+        let inventoryData = []; try { inventoryData = JSON.parse(safeStorage.getItem('party_inventory') || '[]').filter(p => p && p.id); } catch(e) { inventoryData = []; }
+        let unlockedLore = []; try { unlockedLore = JSON.parse(safeStorage.getItem('party_lore') || '[]').filter(l => typeof l === 'string'); } catch(e) { unlockedLore = []; }
+
+        function calculateGuestCount() { return inventoryData.filter(p => p && p.id && p.id !== "sharp_r9" && p.id !== "res_coins" && p.id !== "res_tickets").reduce((acc, current) => { if(!acc.some(item => item.id === current.id)) acc.push(current); return acc; }, []).length; }
+        let guestCount = calculateGuestCount(); let coinsCount = parseInt(safeStorage.getItem('party_coins'), 10) || 0; let lastOpenTime = parseInt(safeStorage.getItem('party_last_open'), 10) || 0; let casesOpened = parseInt(safeStorage.getItem('party_cases_opened'), 10) || 0; let roomOpenedCount = parseInt(safeStorage.getItem('party_room_opened_count'), 10) || 0; let currentStage = parseInt(safeStorage.getItem('party_stage'), 10) || 0; let isIznankaCompleted = safeStorage.getItem('party_iznanka_completed') === 'true';
+        const COOLDOWN_TIME = 4 * 60 * 60 * 1000; let ticketCount = parseInt(safeStorage.getItem('party_ticket_count'), 10) || 0; let lastMinigameTime = parseInt(safeStorage.getItem('party_last_minigame'), 10) || 0; const MINIGAME_COOLDOWN = 10 * 60 * 1000;
+        let gameActive = (Date.now() - lastMinigameTime >= MINIGAME_COOLDOWN); let confirmAction = null; let pendingStoryDrop = null; let transitionTarget = null;
+
+        const phonesLight = [{ id: "l0", name: "Smartisan Nut Pro 3", img: "assets/phones/l_smartisan.png", emoji: "📱" }, { id: "l1", name: "YotaPhone 2", img: "assets/phones/l_yota.png", emoji: "📟" }, { id: "l2", name: "HTC One M8", img: "assets/phones/l_htc.png", emoji: "📳" }, { id: "l3", name: "LG G4 (Кожа)", img: "assets/phones/l_lg.png", emoji: "🧳" }, { id: "l4", name: "Nokia Lumia 1020", img: "assets/phones/l_lumia.png", emoji: "📵" }, { id: "l5", name: "Siemens SX1", img: "assets/phones/l_sx1.png", emoji: "🎮" }, { id: "l6", name: "Motorola E398", img: "assets/phones/l_e398.png", emoji: "📻" }];
+        const phonesRoom = [{ id: "d_r1", name: "Inoi Note 2", img: "assets/phones/l_inoi.png", emoji: "📱" }, { id: "d_r2", name: "Essential Phone", img: "assets/phones/l_essential.png", emoji: "🖤" }, { id: "d_r3", name: "Nextbit Robin", img: "assets/phones/d_robin.png", emoji: "🌑" }, { id: "d_r4", name: "Sony Ericsson K700", img: "assets/phones/d_k700.png", emoji: "🕹️" }];
+        const phonesKitchen = [{ id: "d_k1", name: "LG Wing", img: "assets/phones/d_wing.png", emoji: "🔥" }, { id: "d_k2", name: "SE Xperia Play", img: "assets/phones/d_xplay.png", emoji: "🦠" }, { id: "d_k3", name: "Samsung Galaxy Beam", img: "assets/phones/d_beam.png", emoji: "🩸" }, { id: "d_k4", name: "Motorola RAZR V3", img: "assets/phones/d_razr.png", emoji: "🪞" }];
+        const phonesMall = [{ id: "d_m1", name: "ZTE Axon M", img: "assets/phones/d_axon.png", emoji: "🪆" }, { id: "d_m2", name: "Meizu MX4", img: "assets/phones/d_meizu.png", emoji: "🌌" }, { id: "d_m3", name: "LG G Flex 2", img: "assets/phones/d_gflex.png", emoji: "🍌" }, { id: "d_m4", name: "Nokia N-Gage", img: "assets/phones/d_ngage.png", emoji: "🌮" }];
+        const goldPhoneReward = { id: "sharp_r9", name: "Sharp Aquos R9 Pro", img: "assets/phones/sharp_r9.png", emoji: "📸" };
+
+        const loreLight = ["Корпоратив esPhones. Заброшенный ангар...", "Организаторы прислали коробки...", "Экран светится...", "Ворота заблокированы...", "Генератор с перебоями...", "Шаги металлические..."];
+        const loreDark = ["Кухня: плач...", "Кабинет: протоколы...", "Моя отставка...", "Прикрытие проекта...", "Сектор брака...", "Клочок бумаги..."];
+        const giftFrames = { light: ['assets/gift_light_1.png', 'assets/gift_light_2.png', 'assets/gift_light_3.png', '🎁', '🎉', '💥'], room: ['assets/gift_room_1.png', 'assets/gift_room_2.png', 'assets/gift_room_3.png', '📦', '📂', '📭'], kitchen: ['assets/gift_kitchen_1.png', 'assets/gift_kitchen_2.png', 'assets/gift_kitchen_3.png', '💼', '🧳', '📂'], mall: ['assets/gift_mall_1.png', 'assets/gift_mall_2.png', 'assets/gift_mall_3.png', '🛒', '🛍️', '📦'] };
+
+        function playPaperWhisper() { haptic('tick'); playSynth('whisper'); const p = document.getElementById('paperNotification'); p.style.transform = 'scale(0.95) rotate(-3deg) translateZ(30px)'; setTimeout(() => p.style.transform = 'scale(1) rotate(-1.5deg) translateZ(30px)', 150); }
+
+        function tryLoad(el, src, fallback, isBg=true) {
+            if (!el) return;
+            if (!isBg) { el.innerText = fallback || ''; el.style.backgroundImage = src ? `url('${src}')` : 'none'; } 
+            else { if (src && fallback) { el.style.background = `url('${src}') center/cover no-repeat, ${fallback}`; } else if (src) { el.style.backgroundImage = `url('${src}')`; el.style.backgroundSize = "cover"; el.style.backgroundPosition = "center"; } else { el.style.background = fallback; el.style.backgroundSize = "cover"; el.style.backgroundPosition = "center"; } }
+        }
+
+        const app = document.getElementById('appScreen'); const box = document.getElementById('giftBox'); const boxWrapper = document.getElementById('giftParallaxWrapper'); 
+        function update3D() { if (!app || !box || !boxWrapper) return; app.style.transform = `rotateY(${(mX - 0.5) * 15}deg) rotateX(${-(mY - 0.5) * 15}deg) scale(1.05)`; app.style.webkitTransform = `rotateY(${(mX - 0.5) * 15}deg) rotateX(${-(mY - 0.5) * 15}deg) scale(1.05)`; boxWrapper.style.transform = `translateY(${-(mY - 0.5) * 30}px) translateX(${(mX - 0.5) * 30}px) translateZ(80px)`; boxWrapper.style.webkitTransform = `translateY(${-(mY - 0.5) * 30}px) translateX(${(mX - 0.5) * 30}px) translateZ(80px)`; if (isDarkSide) { app.style.setProperty('--light-x', `${mX * 100}%`); app.style.setProperty('--light-y', `${mY * 100}%`); } }
+        
+        window.addEventListener('mousemove', (e) => { mX = e.clientX/window.innerWidth; mY = e.clientY/window.innerHeight; update3D(); });
+        
+        // ПОЛНОЦЕННОЕ ВЕДЕНИЕ ПАЛЬЦЕМ (TOUCHMOVE И TOUCHSTART) ДЛЯ МОБИЛОК
+        const handleTouch = (e) => {
+            if(e.touches && e.touches.length > 0) {
+                mX = e.touches[0].clientX / window.innerWidth;
+                mY = e.touches[0].clientY / window.innerHeight;
+                update3D();
+            }
+        };
+        window.addEventListener('touchstart', handleTouch, { passive: true });
+        window.addEventListener('touchmove', handleTouch, { passive: true });
+
+        function applyStage() { if (currentStage === 1) setDarkSide('room', false); else if (currentStage === 2) setDarkSide('kitchen', false); else if (currentStage === 3) setDarkSide('mall', false); else { setLightSide(); } }
+
+        function acceptInvite() { 
+            unlockAudioAndGyro(); haptic('tick'); playSynth('drone'); 
+            document.getElementById('tutOopsScreen').style.opacity = '0';
+            document.getElementById('interactiveTutOverlay').style.display = 'none'; 
+            setTimeout(() => { document.getElementById('tutOopsScreen').style.display = 'none'; app.style.display = 'flex'; updateUIState(); applyStage(); switchMinigame(); }, 1000); 
+        }
+
+        function declineInvite() { 
+            if (isIznankaCompleted) { showSafeAlert("Выход заблокирован."); return; }
+            unlockAudioAndGyro(); roomOpenedCount = 0; safeStorage.setItem('party_room_opened_count', 0); currentStage = 1; safeStorage.setItem('party_stage', 1); 
+            document.getElementById('interactiveTutOverlay').style.display = 'none'; app.style.display = 'flex'; 
+            playLevelUpTransition(() => { setDarkSide('room'); updateUIState(); switchMinigame(); }, 'АРХИВ esPhones');
+        }
+
+        function setDarkSide(loc, playSound = true) {
+            isDarkSide = true; currentLoc = loc; document.body.classList.add('is-dark'); updateParticlesColor();
+            if (playSound) { haptic('heavy'); playSynth('drone'); }
+            const root = document.documentElement; root.style.setProperty('--color-text', '#ccc'); root.style.setProperty('--color-panel', 'rgba(15, 20, 15, 0.85)');
+            tryLoad(document.getElementById('moldOverlay'), 'assets/mold_overlay.png', '', true);
+            if (loc === 'room') { tryLoad(app, 'assets/bg_dark_room.jpg', 'linear-gradient(135deg, #121f12 0%, #0d0d0d 100%)', true); tryLoad(box, 'assets/gift_room_1.png', giftFrames['room'][3], false); } 
+            else if (loc === 'kitchen') { tryLoad(app, 'assets/bg_dark_kitchen.jpg', 'linear-gradient(135deg, #2b1f1d 0%, #0c0a0a 100%)', true); tryLoad(box, 'assets/gift_kitchen_1.png', giftFrames['kitchen'][3], false); } 
+            else if (loc === 'mall') { tryLoad(app, 'assets/bg_dark_mall.jpg', 'linear-gradient(135deg, #171f24 0%, #040405 100%)', true); tryLoad(box, 'assets/gift_mall_1.png', giftFrames['mall'][3], false); }
+            update3D(); updateUIState(); switchMinigame();
+        }
+
+        function setLightSide() {
+            isDarkSide = false; currentLoc = 'light'; document.body.classList.remove('is-dark'); updateParticlesColor();
+            const root = document.documentElement; root.style.setProperty('--color-text', '#4a3b32'); root.style.setProperty('--color-panel', 'rgba(255, 255, 255, 0.4)');
+            tryLoad(document.getElementById('moldOverlay'), '', '', true);
+            tryLoad(app, 'assets/bg_light.jpg', 'linear-gradient(135deg, #fce4ec 0%, #e0f7fa 100%)', true);
+            tryLoad(box, 'assets/gift_light_1.png', giftFrames['light'][3], false);
+            update3D(); updateUIState(); switchMinigame();
+        }
+
+        function openTab(id) { 
+            haptic('tick'); document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active')); document.getElementById(id).classList.add('active'); 
+            if(id === 'inventory') renderInv(); if(id === 'lore') renderLore(); if(id === 'minigameContainer') { setTimeout(resizeCanvases, 50); } 
+        }
+
+        document.getElementById('confirmYesBtn').addEventListener('click', () => {
+            if (confirmAction === 'cdBypass') { ticketCount -= 20; safeStorage.setItem('party_ticket_count', ticketCount); lastOpenTime = 0; safeStorage.setItem('party_last_open', 0); closeConfirmModal(); updateUIState(); haptic('success'); executeGiftAnimation(); } 
+            else if (confirmAction === 'transition' && transitionTarget) { const target = transitionTarget; document.getElementById('customConfirm').style.display = 'none'; muffleAudio(false); confirmAction = null; transitionTarget = null;
+                if (target.locKey === 'light_side_final') { currentStage = 4; isIznankaCompleted = true; safeStorage.setItem('party_iznanka_completed', 'true'); safeStorage.setItem('party_stage', 4); playLevelUpTransition(() => { setLightSide(); updateUIState(); }, 'СВЕТЛАЯ СТОРОНА'); } 
+                else { currentStage = target.stageNum; safeStorage.setItem('party_stage', currentStage); playLevelUpTransition(() => { setDarkSide(target.locKey); }, target.locName); } } 
+            else if (confirmAction === 'event_complete') { closeConfirmModal(); showStoryDropModal(goldPhoneReward); } confirmAction = null;
+        });
+
+        function openGift() {
+            if (isOpening || isTransitioning) return;
+            if (Date.now() - lastOpenTime < COOLDOWN_TIME) { haptic('error'); if (ticketCount >= 20) { showCdBypassConfirm(); } else { showSafeAlert(`Коробка еще остывает!\n\nТребуется: 20 Билетов 🎟️ (у вас: ${ticketCount} 🎟️).`); } return; }
+            executeGiftAnimation();
+        }
+
+        function showCdBypassConfirm() { muffleAudio(true); const conf = document.getElementById('customConfirm'); document.getElementById('confirmText').innerText = `Коробка еще остывает. Сбросить таймер мгновенно за 20 Билетов Эфира 🎟️?`; conf.style.display = 'flex'; confirmAction = 'cdBypass'; }
+        function showConfirmTransition(locKey, locName, stageNum) { muffleAudio(true); const conf = document.getElementById('customConfirm'); const msg = locKey === 'light_side_final' ? "Вы хотите выйти из изнанки? Сюда больше нельзя будет вернуться." : `Вы собрали все устройства в этой зоне. Перейти в [${locName}]?`; document.getElementById('confirmText').innerText = msg; conf.style.display = 'flex'; confirmAction = 'transition'; transitionTarget = { locKey, locName, stageNum }; }
+        function closeConfirmModal() { haptic('tick'); document.getElementById('customConfirm').style.display = 'none'; muffleAudio(false); if (confirmAction === 'transition' && pendingStoryDrop) { showStoryDropModal(pendingStoryDrop); pendingStoryDrop = null; } confirmAction = null; transitionTarget = null; }
+
+        function executeGiftAnimation() {
+            if (isOpening || isTransitioning) return; isOpening = true; haptic('tick'); box.classList.add('shake');
+            if (isDarkSide) { document.getElementById('appScreen').style.transform = `scale(1.1) rotate(2deg)`; setTimeout(() => { update3D(); }, 150); }
+            setTimeout(() => {
+                try { haptic('heavy'); tryLoad(box, `assets/gift_${currentLoc}_2.png`, giftFrames[currentLoc] ? giftFrames[currentLoc][4] : '📂', false); } catch(e){}
+                setTimeout(() => {
+                    try { box.classList.remove('shake'); haptic('success'); playSynth('drone'); tryLoad(box, `assets/gift_${currentLoc}_3.png`, giftFrames[currentLoc] ? giftFrames[currentLoc][5] : '📭', false); } catch(e){}
+                    setTimeout(() => {
+                        try {
+                            casesOpened++; safeStorage.setItem('party_cases_opened', casesOpened); roomOpenedCount++; safeStorage.setItem('party_room_opened_count', roomOpenedCount);
+                            let forceDark = (!isDarkSide && !isIznankaCompleted && (casesOpened % 15 === 0 ? Math.random() < 0.75 : Math.random() < 0.02));
+                            if (forceDark) { const tr = document.getElementById('vhsTransition'); if (tr) { tr.style.display = 'block'; tr.style.animation = 'vhs-tear 0.6s forwards'; } playSynth('glitch'); haptic('error'); setTimeout(() => { if (tr) { tr.style.display = 'none'; tr.style.animation = 'none'; } }, 600); currentStage = 1; safeStorage.setItem('party_stage', 1); setDarkSide('room'); roomOpenedCount = 0; safeStorage.setItem('party_room_opened_count', 0); }
+                            lastOpenTime = Date.now(); safeStorage.setItem('party_last_open', lastOpenTime); generateDrop(); updateUIState();
+                        } catch (err) {} finally { try { tryLoad(box, `assets/gift_${currentLoc}_1.png`, giftFrames[currentLoc] ? giftFrames[currentLoc][3] : '🎁', false); } catch(e) {} isOpening = false; }
+                    }, 250);
+                }, 200);
+            }, 150);
+        }
+
+        function generateDrop() {
+            let drop; let rng = Math.random(); let isStoryDrop = false;
+            if (isDarkSide && currentStage < 4) {
+                let currentPool = currentLoc === 'room' ? phonesRoom : (currentLoc === 'kitchen' ? phonesKitchen : phonesMall);
+                let collectedInPool = currentPool.filter(p => inventoryData.some(inv => inv.id === p.id));
+                if (collectedInPool.length === currentPool.length - 1 || roomOpenedCount >= 4) { drop = currentPool.find(p => !inventoryData.some(inv => inv.id === p.id)); if (!drop) { drop = currentPool[Math.floor(Math.random() * currentPool.length)]; } isStoryDrop = true; }
+            }
+
+            if (!drop) {
+                const isAllPhonesCollected = phonesLight.every(p => inventoryData.some(inv => inv.id === p.id)) && phonesRoom.every(p => inventoryData.some(inv => inv.id === p.id)) && phonesKitchen.every(p => inventoryData.some(inv => inv.id === p.id)) && phonesMall.every(p => inventoryData.some(inv => inv.id === p.id));
+                if (isAllPhonesCollected && !inventoryData.some(p => p.id === "sharp_r9")) { drop = goldPhoneReward; } 
+                else if (rng < 0.3) { let pool = phonesLight; if (isDarkSide) { pool = currentLoc === 'room' ? phonesRoom : (currentLoc === 'kitchen' ? phonesKitchen : phonesMall); } let available = pool.filter(p => !inventoryData.some(inv => inv.id === p.id)); if (available.length === 0) available = pool; drop = available[Math.floor(Math.random() * available.length)]; } 
+                else if (rng < 0.7) { let coinsReward = Math.floor(150 + Math.random() * 350); drop = { id: "res_coins", name: `${coinsReward} Монет 🪙`, emoji: "🪙", desc: "coins", amount: coinsReward }; } 
+                else { let ticketsReward = Math.floor(2 + Math.random() * 4); drop = { id: "res_tickets", name: `${ticketsReward} Билетов 🎟️`, emoji: "🎟️", desc: "tickets", amount: ticketsReward }; }
+            }
+
+            let isNewPhone = false;
+            if (drop.desc === "coins") { coinsCount += drop.amount; safeStorage.setItem('party_coins', coinsCount); updateUIState(); if (tg && tg.sendData) { try { tg.sendData(JSON.stringify({ action: "event_resource", coins: drop.amount, tickets: 0 })); } catch (e) {} } document.getElementById('dropName').innerText = `Найдено: +${drop.amount} Монет 🪙`; tryLoad(document.getElementById('dropImg'), "", "🪙", false); const mod = document.getElementById('dropModal'); mod.style.display = 'flex'; muffleAudio(true); haptic('success'); setTimeout(() => mod.classList.add('show'), 10); } 
+            else if (drop.desc === "tickets") { ticketCount += drop.amount; safeStorage.setItem('party_ticket_count', ticketCount); updateUIState(); if (tg && tg.sendData) { try { tg.sendData(JSON.stringify({ action: "event_resource", coins: 0, tickets: drop.amount })); } catch (e) {} } document.getElementById('dropName').innerText = `Найдено: +${drop.amount} Билетов 🎟️`; tryLoad(document.getElementById('dropImg'), "", "🎟️", false); const mod = document.getElementById('dropModal'); mod.style.display = 'flex'; muffleAudio(true); haptic('success'); setTimeout(() => mod.classList.add('show'), 10); } 
+            else {
+                isNewPhone = !inventoryData.some(p => p.id === drop.id); inventoryData.push(drop); safeStorage.setItem('party_inventory', JSON.stringify(inventoryData));
+                if (isNewPhone) { guestCount = calculateGuestCount(); safeStorage.setItem('party_guest_count', guestCount); const lorePool = isDarkSide ? loreDark : loreLight; let currentSideNotes = unlockedLore.filter(l => lorePool.includes(l)); if (currentSideNotes.length < lorePool.length) { unlockedLore.push(lorePool[currentSideNotes.length]); safeStorage.setItem('party_lore', JSON.stringify(unlockedLore)); } }
+                if (tg.sendData) { try { tg.sendData(JSON.stringify({ action: "event_drop", phone_id: drop.id, is_dark: isDarkSide, name: drop.name, is_new: isNewPhone })); } catch (e) {} }
+                if (isStoryDrop) { pendingStoryDrop = drop; updateUIState(); }
+                document.getElementById('dropName').innerText = isNewPhone ? drop.name : `Повторка! ${drop.name}`; tryLoad(document.getElementById('dropImg'), drop.img, drop.emoji, false); const mod = document.getElementById('dropModal'); mod.style.display = 'flex'; muffleAudio(true); haptic('success'); setTimeout(() => mod.classList.add('show'), 10);
+            }
+        }
+
+        function closeModal() { haptic('tick'); const mod = document.getElementById('dropModal'); mod.classList.remove('show'); muffleAudio(false); setTimeout(() => { mod.style.display = 'none'; checkProgression(); checkEventCompletion(); }, 400); }
+
+        function checkProgression() {
+            if (!isDarkSide || isTransitioning) return; 
+            if (currentLoc === 'room') { const hasAll = phonesRoom.every(p => inventoryData.some(i => i.id === p.id)); if (hasAll && currentStage < 2) { roomOpenedCount = 0; safeStorage.setItem('party_room_opened_count', 0); showConfirmTransition('kitchen', 'ЛАБОРАТОРИЯ esOS', 2); } } 
+            else if (currentLoc === 'kitchen') { const hasAll = phonesKitchen.every(p => inventoryData.some(i => i.id === p.id)); if (hasAll && currentStage < 3) { roomOpenedCount = 0; safeStorage.setItem('party_room_opened_count', 0); showConfirmTransition('mall', 'СБОРОЧНЫЙ ЦЕХ', 3); } } 
+            else if (currentLoc === 'mall') { const hasAll = phonesMall.every(p => inventoryData.some(i => i.id === p.id)); if (hasAll && currentStage < 4) { roomOpenedCount = 0; safeStorage.setItem('party_room_opened_count', 0); showConfirmTransition('light_side_final', 'СВЕТЛАЯ СТОРОНА', 4); } }
+        }
+
+        function checkEventCompletion() {
+            const totalRequired = phonesLight.length + phonesRoom.length + phonesKitchen.length + phonesMall.length; const collectedUnique = calculateGuestCount();
+            if (collectedUnique >= totalRequired && !inventoryData.some(p => p.id === "sharp_r9")) { inventoryData.push(goldPhoneReward); safeStorage.setItem('party_inventory', JSON.stringify(inventoryData)); if (tg.sendData) { try { tg.sendData(JSON.stringify({ action: "event_drop", phone_id: goldPhoneReward.id, is_dark: isDarkSide, name: goldPhoneReward.name, is_new: true })); } catch(e) {} } muffleAudio(true); const conf = document.getElementById('customConfirm'); document.getElementById('confirmText').innerText = "Ивент esPhones пройден! Ваша награда - Sharp Aquos R9 Pro. Один из самых редких телефонов в боте!"; document.getElementById('confirmYesBtn').innerText = "Забрать награду"; confirmAction = 'event_complete'; conf.style.display = 'flex'; }
+        }
+
+        function playLevelUpTransition(nextLocFn, locName) {
+            if (isTransitioning) return; isTransitioning = true;
+            const appScreen = document.getElementById('appScreen'); appScreen.style.filter = 'blur(15px)'; appScreen.style.opacity = '0.3';
+            const overlay = document.getElementById('levelUpOverlay'); const num = document.getElementById('levelUpNumber'); overlay.style.display = 'flex'; setTimeout(() => { overlay.style.opacity = '1'; }, 20);
+            let counter = 3; num.innerText = counter; num.style.color = 'white'; num.style.transform = 'scale(1)'; playSynth('beep');
+            let intv = setInterval(() => {
+                counter--;
+                if(counter === 2) { num.innerText = counter; num.style.color = '#fa0'; num.style.transform = 'scale(1.5)'; playSynth('beep'); } 
+                else if (counter === 1) { num.innerText = counter; num.style.color = '#f00'; num.style.transform = 'scale(2)'; playSynth('concussion'); } 
+                else {
+                    clearInterval(intv); overlay.style.opacity = '0'; 
+                    setTimeout(() => {
+                        overlay.style.display = 'none'; const flash = document.getElementById('flashOverlay'); const ts = document.getElementById('transScreen');
+                        flash.style.display = 'block'; flash.style.opacity = '1'; playSynth('concussion'); haptic('heavy'); playSynth('tinnitus');
+                        setTimeout(() => {
+                            flash.style.opacity = '0'; document.getElementById('transLocName').innerText = locName; ts.style.display = 'flex';
+                            setTimeout(() => { ts.style.display = 'none'; flash.style.display = 'none'; nextLocFn(); openTab('gacha'); isTransitioning = false; appScreen.style.filter = 'none'; appScreen.style.opacity = '1'; if (pendingStoryDrop) { pendingStoryDrop = null; } }, 3000); 
+                        }, 500); 
+                    }, 500);
+                }
+            }, 1000);
+        }
+
+        function showStoryDropModal(drop) { document.getElementById('dropName').innerText = `ВНИМАНИЕ. НАЙДЕНО: ${drop.name}`; tryLoad(document.getElementById('dropImg'), drop.img, drop.emoji, false); const mod = document.getElementById('dropModal'); mod.style.display = 'flex'; muffleAudio(true); haptic('success'); setTimeout(() => mod.classList.add('show'), 10); }
+        
+        function getDynamicPaperText() { 
+            if (guestCount === 0) return "В этой комнате никого нет. Пока нет."; 
+            if (guestCount >= 1 && guestCount <= 3) return "Первые гости уже здесь. Они не снимают обувь."; 
+            if (guestCount >= 4 && guestCount <= 6) return "В коридоре кто-то тихо кашляет. В воздухе пахнет старой пылью."; 
+            if (guestCount >= 7 && guestCount <= 10) return "Они принесли подарки. Коробки внутри абсолютно пустые."; 
+            if (guestCount >= 11 && guestCount <= 13) return "Кто-то включил телевизор, но там только серый шум."; 
+            if (guestCount >= 14 && guestCount <= 16) return "В комнате стало очень тесно. Остался один свободный стул."; 
+            return "Все 19 гостей смотрят на тебя. Задувай свечу."; 
+        }
+
+        function updateUIState() {
+            const totalRequired = phonesLight.length + phonesRoom.length + phonesKitchen.length + phonesMall.length; document.getElementById('totalGuestsLabel').innerText = totalRequired; document.getElementById('paperTimerText').innerText = `До конца корпоратива: ${DAYS_REMAINING}`; document.getElementById('guestCountLabel').innerText = guestCount; document.getElementById('guestProgressBar').style.width = `${(guestCount/totalRequired)*100}%`; document.getElementById('paperStatusText').innerText = getDynamicPaperText(); document.getElementById('ticketCountLabel').innerText = ticketCount; document.getElementById('coinCountLabel').innerText = coinsCount; if (safeStorage.getItem('party_dev') === 'true') document.getElementById('devBypassBtn').style.display = 'inline-block';
+        }
+
+        function initGlobalTimers() {
+            setInterval(() => {
+                const diff = Date.now() - lastOpenTime; const cooldownLabel = document.getElementById('cooldownLabel');
+                if (diff < COOLDOWN_TIME) { box.classList.add('disabled'); const tl = COOLDOWN_TIME - diff; cooldownLabel.innerText = `Остывает: ${Math.floor(tl/3600000)}ч ${Math.floor((tl%3600000)/60000)}м ${Math.floor((tl%60000)/1000)}с`; cooldownLabel.style.display = 'block'; } 
+                else { box.classList.remove('disabled'); cooldownLabel.style.display = 'none'; }
+            }, 1000);
+            setInterval(() => {
+                const diff = Date.now() - lastMinigameTime; const label = document.getElementById('minigameTimerLabel');
+                if (diff < MINIGAME_COOLDOWN) { gameActive = false; const tl = MINIGAME_COOLDOWN - diff; label.innerText = `До следующей задачи: ${Math.floor(tl/60000)}м ${Math.floor((tl%60000)/1000)}с`; label.style.display = 'block'; } 
+                else { if (!gameActive && lastMinigameTime !== 0) { gameActive = true; resetMinigames(); showSafeAlert("📡 Доступна новая задача в Терминале!"); } label.style.display = 'none'; }
+            }, 1000);
+        }
+        initGlobalTimers();
+        function resetTestCD() { try { lastOpenTime = 0; safeStorage.setItem('party_last_open', 0); updateUIState(); haptic('success'); showSafeAlert("Тестовый сброс КД выполнен!"); } catch(e){} }
+        function renderInv() { const grid = document.getElementById('invGrid'); grid.innerHTML = ''; let phonesOnly = inventoryData.filter(p => p && p.id && p.id !== "res_coins" && p.id !== "res_tickets"); if (!phonesOnly.length) return grid.innerHTML = '<p style="grid-column: span 2; text-align: center; opacity:0.5;">Твои руки пусты...</p>'; phonesOnly.forEach((p, index) => { const cardId = `p_card_${p.id}_${index}`; grid.innerHTML += `<div class="card" id="${cardId}"><div class="phone-image" id="img_${cardId}" style="background-image: url('${p.img}');">${p.emoji}</div><p style="font-size: 11px; font-weight: bold;">${p.name}</p></div>`; }); }
+        function renderLore() { const grid = document.getElementById('loreGrid'); grid.innerHTML = ''; if (!unlockedLore.length) return grid.innerHTML = '<p style="opacity:0.5;">Собери устройства...</p>'; unlockedLore.forEach(t => grid.innerHTML += `<div class="lore-entry">${t}</div>`); }
+        function openTerminal() { haptic('tick'); document.getElementById('terminalScreen').style.display = 'flex'; document.getElementById('termInput').focus(); muffleAudio(true); }
+        function closeTerminal() { haptic('tick'); document.getElementById('terminalScreen').style.display = 'none'; muffleAudio(false); }
+
+        function resizeCanvases() { 
+            const p1 = document.getElementById('waveCanvas').parentElement; if (p1 && p1.clientWidth > 0) { document.getElementById('waveCanvas').width = p1.clientWidth - 10; document.getElementById('waveCanvas').height = 120; } 
+            const p2 = document.getElementById('radarCanvas').parentElement; if (p2 && p2.clientWidth > 0) { document.getElementById('radarCanvas').width = p2.clientWidth; document.getElementById('radarCanvas').height = p2.clientHeight; }
+        }
+        window.addEventListener('resize', resizeCanvases);
+
+        function handleTerminalCommand(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault(); const inp = document.getElementById('termInput'); const out = document.getElementById('termOutput'); const cmd = inp.value.trim().toUpperCase(); inp.value = ''; let chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&*"; let iter = 0; let finalMsg = "ОШИБКА: НЕИЗВЕСТНАЯ ДИРЕКТИВА.";
+                if (cmd === '') return;
+                if (cmd === 'TRUTH') finalMsg = "ПРАВДА В ТОМ, ЧТО ТЫ САМ ПРИШЕЛ СЮДА."; else if (cmd === 'LIGHT') { setLightSide(); finalMsg = "ВОЗВРАТ НА СВЕТЛУЮ СТОРОНУ УСПЕШЕН."; } else if (cmd === 'ESPHONES1999') finalMsg = "КОРПОРАТИВ ОДОБРЕН. ДОСТУП ОТКРЫТ."; else if (cmd === 'CLEAR') { lastOpenTime = 0; safeStorage.setItem('party_last_open', 0); lastMinigameTime = 0; safeStorage.setItem('party_last_minigame', 0); updateUIState(); finalMsg = "ОЧИСТКА ЭФИРА. ТАЙМЕРЫ СБРОШЕНЫ."; } else if (cmd === 'ESSERSTYESDEV123') finalMsg = "РЕЖИМ РАЗРАБОТЧИКА АКТИВИРОВАН. СБРОС КД ДОСТУПЕН НА СТОЛЕ."; else if (cmd === 'HELP') finalMsg = "ОШИБКА: В ПОМОЩИ ОТКАЗАНО."; else if (cmd === 'RELOAD') { if(confirm("ВНИМАНИЕ!\nВесь прогресс и инвентарь будут навсегда удалены. Вы уверены?")) { safeStorage.clear(); haptic('error'); playSynth('glitch'); setTimeout(() => { location.reload(); }, 500); return; } else { finalMsg = "ОТМЕНА УДАЛЕНИЯ."; } }
+                const interval = setInterval(() => { out.innerText = finalMsg.split('').map((c, i) => i < iter ? c : chars[Math.floor(Math.random()*chars.length)]).join(''); iter += 2; haptic('tick'); if(iter > finalMsg.length) { clearInterval(interval); out.innerText = finalMsg; if(cmd === 'ESPHONES1999' && !inventoryData.some(p => p.id === phonesLight[0].id)) { inventoryData.push(phonesLight[0]); haptic('success'); playSynth('success'); } if(cmd === 'CLEAR' || cmd === 'LIGHT') { playSynth('success'); } if(cmd === 'ESSERSTYESDEV123') { safeStorage.setItem('party_dev', 'true'); document.getElementById('devBypassBtn').style.display = 'inline-block'; playSynth('success'); } } }, 30);
+            }
+        }
+
+        function startPreloader() { const bar = document.getElementById('appLoadingBar'); if (!bar) return; let progress = 0; let interval = setInterval(() => { progress += Math.random() * 12; if (progress >= 100) { progress = 100; clearInterval(interval); setTimeout(() => { const loader = document.getElementById('appLoadingScreen'); if (loader) { loader.style.transition = 'opacity 0.8s ease'; loader.style.opacity = '0'; setTimeout(() => loader.style.display = 'none', 800); } }, 500); } bar.style.width = `${progress}%`; }, 60); }
+        startPreloader();
+
+        // ----------------------------------------------------------------------------------
+        // МИНИ-ИГРЫ ДВИЖОК
+        // ----------------------------------------------------------------------------------
+        
+        function switchMinigame() {
+            document.querySelectorAll('.minigame-wrapper').forEach(el => el.classList.remove('active'));
+            if (currentStage === 0 || currentStage === 4) { document.getElementById('mg-radio').classList.add('active'); }
+            else if (currentStage === 1) { document.getElementById('mg-decrypt').classList.add('active'); }
+            else if (currentStage === 2) { document.getElementById('mg-radar').classList.add('active'); }
+            else if (currentStage === 3) { document.getElementById('mg-reactor').classList.add('active'); }
+            resizeCanvases(); resetMinigames();
+        }
+
+        function handleMinigameWin() {
+            if (!gameActive) return;
+            gameActive = false; lastMinigameTime = Date.now(); safeStorage.setItem('party_last_minigame', lastMinigameTime);
+            let reward = Math.floor(1 + Math.random() * 2); if (tg && tg.sendData) { try { tg.sendData(JSON.stringify({ action: "event_resource", coins: 0, tickets: reward })); } catch(e){} } ticketCount += reward; safeStorage.setItem('party_ticket_count', ticketCount);
+            haptic('success'); playSynth('success'); 
+            document.getElementById('minigameResult').innerHTML = `✅ ЗАДАЧА УСПЕШНА!<br>Награда: +${reward} Билетов 🎟️`; 
+            showSafeAlert(`✅ Успех!\nВы выполнили задачу.\nНаграда: +${reward} Билетов 🎟️!`); updateUIState();
+        }
+
+        function resetMinigames() {
+            stabilizeProgress = 0; document.getElementById('stabilizeProgressLabel').innerText = "0%"; targetFreq = 20 + Math.random() * 60;
+            targetDec = Math.floor(1000 + Math.random() * 8999); document.getElementById('targetDecCode').innerText = targetDec;
+            radarAngle = 0; targetRadarAngle = Math.random() * Math.PI * 2;
+            reactorPressure = 0; reactorWinTime = 0; isReactorPressing = false; document.getElementById('reactorFill').style.height = '0%'; document.getElementById('reactorTimeLabel').innerText = "0.0";
+            document.getElementById('minigameResult').innerHTML = "";
+        }
+
+        // ИГРА 0: РАДИО
+        const waveCanvas = document.getElementById('waveCanvas'); const wctx = waveCanvas.getContext('2d', { alpha: false });
+        let targetFreq = 30 + Math.random() * 50; let playerFreq = 50; let stabilizeProgress = 0; let timeAcc = 0;
+
+        function adjustFrequency(val) { playerFreq = Math.max(10, Math.min(100, parseInt(val))); haptic('tick'); }
+
+        function drawWave() {
+            requestAnimationFrame(drawWave);
+            if (!document.getElementById('mg-radio').classList.contains('active') || !document.getElementById('minigameContainer').classList.contains('active')) return; 
+            try {
+                // АВТОМАТИЧЕСКАЯ РЕГУЛИРОВКА ЕСЛИ ШИРИНА 0
+                if (waveCanvas.width === 0 || waveCanvas.height === 0) { resizeCanvases(); }
+                const w = waveCanvas.width; const h = waveCanvas.height; if (w === 0 || h === 0) return; timeAcc += 0.05;
+                wctx.fillStyle = 'rgba(2, 10, 2, 0.4)'; wctx.fillRect(0, 0, w, h);
+                wctx.strokeStyle = 'rgba(0, 255, 0, 0.15)'; wctx.lineWidth = 1; wctx.beginPath(); for(let x=0; x<w; x+=25) { wctx.moveTo(x, 0); wctx.lineTo(x, h); } for(let y=0; y<h; y+=25) { wctx.moveTo(0, y); wctx.lineTo(w, y); } wctx.stroke();
+
+                if (!gameActive) {
+                    wctx.strokeStyle = 'rgba(255, 50, 50, 0.7)'; wctx.lineWidth = 2; wctx.beginPath(); wctx.moveTo(0, h/2);
+                    for(let x=0; x<w; x+=5) { let y = h/2; if (Math.random() > 0.90) y += (Math.random()-0.5)*50; wctx.lineTo(x, y); } wctx.stroke();
+                    wctx.fillStyle = '#ff3333'; wctx.font = 'bold 16px Courier Prime, monospace'; wctx.textAlign = 'center'; wctx.fillText("ОЖИДАНИЕ СИГНАЛА...", w/2, h/2 - 20); return;
+                }
+
+                let diff = Math.abs(playerFreq - targetFreq); let isSynced = diff < 3;
+                wctx.strokeStyle = isSynced ? 'rgba(255, 255, 255, 0.9)' : 'rgba(255, 60, 60, 0.8)'; wctx.lineWidth = isSynced ? 4 : 2; wctx.beginPath();
+                for(let x=0; x<w; x+=3) { let freq = isSynced ? playerFreq : targetFreq; let noise = isSynced ? 0 : Math.sin(x*0.1 + timeAcc*4) * 8; let y = h/2 + Math.sin(x * (freq / 1000) + timeAcc) * 35 + noise; if(x===0) wctx.moveTo(x,y); else wctx.lineTo(x,y); } wctx.stroke();
+
+                wctx.strokeStyle = '#5f5'; wctx.lineWidth = 3; wctx.shadowColor = '#5f5'; wctx.shadowBlur = 10; wctx.beginPath();
+                for(let x=0; x<w; x+=3) { let y = h/2 + Math.sin(x * (playerFreq / 1000) + timeAcc) * 35; if(x===0) wctx.moveTo(x,y); else wctx.lineTo(x,y); } wctx.stroke(); wctx.shadowBlur = 0;
+
+                if (isSynced) { stabilizeProgress += 0.8; wctx.fillStyle = `rgba(85, 255, 85, ${0.1 + Math.random()*0.1})`; wctx.fillRect(0,0,w,h); if(Date.now() - lastWhisperTime > 200) { playSynth('whisper'); lastWhisperTime = Date.now(); } } 
+                else { stabilizeProgress = Math.max(0, stabilizeProgress - 0.5); }
+
+                document.getElementById('stabilizeProgressLabel').innerText = `${Math.floor(Math.min(100, stabilizeProgress))}%`;
+                if (stabilizeProgress >= 100) { handleMinigameWin(); }
+            } catch (err) {}
+        }
+        setTimeout(() => { drawWave(); }, 500);
+
+        // ИГРА 1: ДЕШИФРАТОР
+        let targetDec = 1999; let currentDec = 0000;
+        setInterval(() => {
+            if(!gameActive || !document.getElementById('mg-decrypt').classList.contains('active')) return;
+            currentDec = Math.floor(1000 + Math.random() * 8999);
+            if (Math.random() > 0.95) currentDec = targetDec;
+            document.getElementById('currentDecCode').innerText = currentDec;
+        }, 100);
+
+        function checkDecryption() {
+            if(!gameActive) return; haptic('tick');
+            if (currentDec === targetDec) { handleMinigameWin(); } 
+            else { haptic('error'); playSynth('glitch'); document.getElementById('currentDecCode').style.color = '#fff'; setTimeout(()=>document.getElementById('currentDecCode').style.color = '#f33', 200); }
+        }
+
+        // ИГРА 2: РАДАР
+        const radarCanvas = document.getElementById('radarCanvas'); const rctx = radarCanvas.getContext('2d');
+        let radarAngle = 0; let targetRadarAngle = Math.PI; let radarBlipAlpha = 0;
+
+        function drawRadar() {
+            requestAnimationFrame(drawRadar);
+            if (!document.getElementById('mg-radar').classList.contains('active') || !document.getElementById('minigameContainer').classList.contains('active')) return;
+            try {
+                // АВТОМАТИЧЕСКАЯ РЕГУЛИРОВКА ЕСЛИ ШИРИНА 0
+                if (radarCanvas.width === 0 || radarCanvas.height === 0) { resizeCanvases(); }
+                const w = radarCanvas.width; const h = radarCanvas.height; if (w === 0) return;
+                rctx.clearRect(0,0,w,h); const cx = w/2; const cy = h/2; const r = Math.min(cx, cy) - 5;
+                
+                rctx.strokeStyle = 'rgba(0,255,0,0.3)'; rctx.lineWidth = 1;
+                rctx.beginPath(); rctx.arc(cx, cy, r*0.33, 0, Math.PI*2); rctx.stroke();
+                rctx.beginPath(); rctx.arc(cx, cy, r*0.66, 0, Math.PI*2); rctx.stroke();
+                rctx.beginPath(); rctx.moveTo(cx, 0); rctx.lineTo(cx, h); rctx.stroke();
+                rctx.beginPath(); rctx.moveTo(0, cy); rctx.lineTo(w, cy); rctx.stroke();
+
+                if (!gameActive) { rctx.fillStyle = '#0f0'; rctx.font = '12px Courier Prime'; rctx.textAlign = 'center'; rctx.fillText("БЛОКИРОВКА", cx, cy); return; }
+
+                radarAngle += 0.05; if (radarAngle > Math.PI*2) radarAngle -= Math.PI*2;
+                
+                rctx.beginPath(); rctx.moveTo(cx, cy); rctx.arc(cx, cy, r, radarAngle - 0.5, radarAngle); rctx.lineTo(cx, cy);
+                let grad = rctx.createRadialGradient(cx, cy, 0, cx, cy, r); grad.addColorStop(0, 'rgba(0,255,0,0.5)'); grad.addColorStop(1, 'rgba(0,255,0,0)');
+                rctx.fillStyle = grad; rctx.fill();
+                rctx.strokeStyle = '#0f0'; rctx.lineWidth = 2; rctx.beginPath(); rctx.moveTo(cx, cy); rctx.lineTo(cx + Math.cos(radarAngle)*r, cy + Math.sin(radarAngle)*r); rctx.stroke();
+
+                let diff = Math.abs(radarAngle - targetRadarAngle); if (diff > Math.PI) diff = Math.PI*2 - diff;
+                if (diff < 0.2) { radarBlipAlpha = 1; if(Date.now()-lastWhisperTime > 300) { playSynth('beep'); lastWhisperTime=Date.now(); } }
+                else { radarBlipAlpha = Math.max(0, radarBlipAlpha - 0.02); }
+                
+                rctx.fillStyle = `rgba(255,50,50,${radarBlipAlpha})`; rctx.beginPath(); rctx.arc(cx + Math.cos(targetRadarAngle)*r*0.6, cy + Math.sin(targetRadarAngle)*r*0.6, 6, 0, Math.PI*2); rctx.fill();
+            } catch(e){}
+        }
+        setTimeout(() => { drawRadar(); }, 500);
+
+        function checkRadarClick() {
+            if(!gameActive) return;
+            let diff = Math.abs(radarAngle - targetRadarAngle); if (diff > Math.PI) diff = Math.PI*2 - diff;
+            if (diff < 0.3) { handleMinigameWin(); } else { haptic('error'); playSynth('concussion'); document.getElementById('radarStatusLabel').innerText = "ПРОМАХ!"; document.getElementById('radarStatusLabel').style.color = 'red'; setTimeout(()=> { document.getElementById('radarStatusLabel').innerText = "СКАНИРОВАНИЕ..."; document.getElementById('radarStatusLabel').style.color = '#0f0'; }, 500); }
+        }
+
+        // ИГРА 3: РЕАКТОР (СВЕЧА)
+        let isReactorPressing = false; let reactorPressure = 0; let reactorWinTime = 0;
+        const btnHold = document.getElementById('reactorBtn');
+        btnHold.addEventListener('mousedown', () => { isReactorPressing = true; haptic('tick'); });
+        btnHold.addEventListener('mouseup', () => { isReactorPressing = false; });
+        btnHold.addEventListener('touchstart', (e) => { e.preventDefault(); isReactorPressing = true; haptic('tick'); }, {passive:false});
+        btnHold.addEventListener('touchend', (e) => { e.preventDefault(); isReactorPressing = false; }, {passive:false});
+
+        setInterval(() => {
+            if(!gameActive || !document.getElementById('mg-reactor').classList.contains('active')) return;
+            if (isReactorPressing) { reactorPressure += 4; } else { reactorPressure -= 3; }
+            reactorPressure = Math.max(0, Math.min(100, reactorPressure));
+            
+            document.getElementById('reactorFill').style.height = `${reactorPressure}%`;
+            
+            if (reactorPressure >= 40 && reactorPressure <= 60) {
+                reactorWinTime += 0.05; document.getElementById('reactorFill').style.background = '#ff80ab';
+                if(Math.random()>0.8) playSynth('whisper');
+            } else {
+                reactorWinTime = 0; document.getElementById('reactorFill').style.background = 'linear-gradient(0deg, #ff1744 0%, #ff80ab 50%, #ff1744 100%)';
+            }
+            
+            document.getElementById('reactorTimeLabel').innerText = reactorWinTime.toFixed(1);
+            if (reactorWinTime >= 4.0) { isReactorPressing = false; handleMinigameWin(); }
+        }, 50);
+
+        function buyCoins() { if (ticketCount < 5) return showSafeAlert("Не хватает Билетов Эфира 🎟️ (нужно минимум 5)"); ticketCount -= 5; coinsCount += 500; safeStorage.setItem('party_ticket_count', ticketCount); safeStorage.setItem('party_coins', coinsCount); updateUIState(); haptic('success'); showSafeAlert("🎟️ Билеты списаны!\n500 Монет 🪙 добавлены в инвентарь."); if (tg && tg.sendData) { try { tg.sendData(JSON.stringify({ action: "event_resource", coins: 500, tickets: -5 })); } catch(e) {} } }
+        function buyCdReset() { if (ticketCount < 20) return showSafeAlert("Не хватает Билетов Эфира 🎟️ (нужно минимум 20)"); ticketCount -= 20; safeStorage.setItem('party_ticket_count', ticketCount); lastOpenTime = 0; safeStorage.setItem('party_last_open', 0); updateUIState(); haptic('success'); showSafeAlert("Коробка снова доступна для открытия!"); if (tg && tg.sendData) { try { tg.sendData(JSON.stringify({ action: "event_resource", coins: 0, tickets: -20 })); } catch(e) {} } }
+
+        // SIRI JUMPSCARE СЮЖЕТНЫЕ СОБЫТИЯ
+        const storyEvents = [
+            "Мне это уже не нравится...",
+            "Почему гости не моргают?",
+            "Кто-то плачет на кухне...",
+            "Они поют 'С днем рождения' слишком медленно.",
+            "Коробки... они дышат.",
+            "Они принесли подарки. Коробки внутри абсолютно пустые.",
+            "Не оборачивайся. Оно не любит резких движений.",
+            "Все 19 гостей смотрят на тебя. Задувай свечу."
+        ];
+        let storyEventIndex = parseInt(safeStorage.getItem('party_story_idx'), 10) || 0;
+
+        function triggerStoryEvent() {
+            if(storyEventIndex >= storyEvents.length || isTransitioning || isOpening) return;
+            const overlay = document.getElementById('storyEventOverlay');
+            const textEl = document.getElementById('storyEventText');
+            overlay.style.display = 'flex'; overlay.style.opacity = '1';
+            
+            playSynth('concussion'); haptic('heavy');
+            setTimeout(() => playSynth('whisper'), 500);
+
+            textEl.innerHTML = ''; let txt = storyEvents[storyEventIndex]; let i = 0;
+            let typeInterval = setInterval(() => {
+                textEl.innerHTML += txt[i]; i++; haptic('tick');
+                if(i === txt.length) {
+                    clearInterval(typeInterval);
+                    setTimeout(() => {
+                        overlay.style.opacity = '0';
+                        setTimeout(() => {
+                            overlay.style.display = 'none';
+                            storyEventIndex++; safeStorage.setItem('party_story_idx', storyEventIndex);
+                        }, 1000);
+                    }, 4000);
+                }
+            }, 100);
+        }
+        
+        setTimeout(triggerStoryEvent, 120000); 
+        setInterval(triggerStoryEvent, 300000);
+
+        // ЧАСТИЦЫ
+        const pcvs = document.getElementById('particlesCanvas'); const pctx = pcvs.getContext('2d'); let particles = []; let particleColor = 'rgba(255,230,200,0.5)';
+        function updateParticlesColor() { particleColor = isDarkSide ? 'rgba(100,255,100,0.6)' : 'rgba(255,230,200,0.5)'; }
+        function initParticles() { pcvs.width = window.innerWidth; pcvs.height = window.innerHeight; particles = []; for(let i=0; i<45; i++) particles.push({ x: Math.random()*pcvs.width, y: Math.random()*pcvs.height, r: Math.random()*2.5+0.5, vx: (Math.random()-0.5)*0.3, vy: (Math.random()-0.5)*0.3 }); }
+        function drawParticles() { if (isTabActive) { pctx.clearRect(0,0,pcvs.width,pcvs.height); pctx.fillStyle = particleColor; particles.forEach(p => { pctx.beginPath(); pctx.arc(p.x, p.y, p.r, 0, Math.PI*2); pctx.fill(); p.x += p.vx + (mX-0.5)*2; p.y += p.vy + (mY-0.5)*2; if(p.x<0) p.x=pcvs.width; if(p.x>pcvs.width) p.x=0; if(p.y<0) p.y=pcvs.height; if(p.y>pcvs.height) p.y=0; }); } requestAnimationFrame(drawParticles); }
+        window.addEventListener('resize', initParticles); initParticles(); drawParticles();
+
+        // WEBGL ТУМАН
+        try { const canvasEl = document.getElementById("fogCanvas"); if (canvasEl) { const gl = canvasEl.getContext("webgl") || canvasEl.getContext("experimental-webgl"); if (gl) { const vs = gl.createShader(gl.VERTEX_SHADER); gl.shaderSource(vs, `attribute vec2 position; void main() { gl_Position = vec4(position, 0.0, 1.0); }`); gl.compileShader(vs); const fs = gl.createShader(gl.FRAGMENT_SHADER); gl.shaderSource(fs, `precision lowp float; uniform float u_time; uniform vec2 u_resolution; float rand(vec2 c){return fract(sin(dot(c.xy,vec2(12.9898,78.233)))*43758.5453);} float noise(vec2 st){vec2 i=floor(st), f=fract(st); float a=rand(i), f_val=fract(st); float b=rand(i+vec2(1.,0.)), c=rand(i+vec2(0.,1.)), d=rand(i+vec2(1.,1.)); vec2 u=f_val*f_val*(3.-2.*f_val); return mix(a,b,u.x)+(c-a)*u.y*(1.-u.x)+(d-b)*u.x*u.y;} void main() { vec2 uv = gl_FragCoord.xy / u_resolution.xy; uv.x *= u_resolution.x / u_resolution.y; vec2 motion = vec2(u_time*0.01, u_time*-0.005); float nR = noise(uv*3.0+motion) * 0.5 + noise(uv*6.0-motion) * 0.25; float nG = noise(uv*3.0+motion+0.01) * 0.5 + noise(uv*6.0-motion) * 0.25; float nB = noise(uv*3.0+motion-0.01) * 0.5 + noise(uv*6.0-motion) * 0.25; gl_FragColor = vec4(nR, nG, nB, (nR+nG+nB)/3.0 * 0.35); }`); gl.compileShader(fs); const prog = gl.createProgram(); gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog); gl.useProgram(prog); const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW); const loc = gl.getAttribLocation(prog, "position"); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0); const tLoc = gl.getUniformLocation(prog, "u_time"); const rLoc = gl.getUniformLocation(prog, "u_resolution"); function renderFog(t) { if (gl && isTabActive) { gl.uniform1f(tLoc, t*0.001); gl.viewport(0,0,gl.canvas.width=window.innerWidth,gl.canvas.height=window.innerHeight); gl.uniform2f(rLoc, gl.canvas.width, gl.canvas.height); gl.drawArrays(gl.TRIANGLES, 0, 6); } requestAnimationFrame(renderFog); } requestAnimationFrame(renderFog); } } } catch (e) {}
+    </script>
+</body>
+</html>
